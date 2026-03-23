@@ -1,0 +1,7 @@
+node_modules
+dist
+.env
+*.local
+.git
+engineer_plan
+backend/

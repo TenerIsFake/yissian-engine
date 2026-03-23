@@ -1,0 +1,5 @@
+.env
+.env.audit
+__pycache__/
+*.pyc
+*.pyo

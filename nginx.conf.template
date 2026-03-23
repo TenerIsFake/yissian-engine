@@ -1,0 +1,786 @@
+# P1-02: rate limit zones — must be in http context (this file is included inside http{} in nginx.conf)
+# api_general: 300 req/min per IP with configurable burst per location
+# api_write: tighter zone for write endpoints (Seerr POST, qBit setPreferences)
+limit_req_zone $binary_remote_addr zone=api_general:10m rate=300r/m;
+limit_req_zone $binary_remote_addr zone=api_write:10m  rate=5r/m;
+# api_glances: isolated zone for Glances metrics polling (5s * 5 endpoints * 2 servers = 120 req/min)
+# Kept separate so Glances burst never starves api_general (SABnzbd, Cloudflared, etc.)
+limit_req_zone $binary_remote_addr zone=api_glances:10m rate=150r/m;
+
+# map_hash_bucket_size: increased from 64 to 128 because the PORT_UPDATER_SECRET map key
+# exceeds the default 64-byte bucket — nginx startup fails otherwise. See .env.example for
+# the required secret format.
+map_hash_bucket_size 128;
+
+# P0-01: map block for qBit setPreferences secret check.
+# Replaces bare 'if' comparison — prevents accidental bypass when secret is non-empty.
+# IMPORTANT: map alone is NOT sufficient when PORT_UPDATER_SECRET is unset/empty (envsubst
+# substitutes "" producing an explicit "" key that matches absent headers). The double-guard
+# in the location block below (empty-header rejection + map check) closes that gap.
+# PORT_UPDATER_SECRET must be a non-empty value in .env — see .env.example.
+map $http_x_port_updater_secret $port_secret_valid {
+    default                  0;
+    "${PORT_UPDATER_SECRET}" 1;
+}
+
+# Docker's internal DNS in http{} context — applies to ALL variable-based proxy_pass
+# (server-context resolver only applies to exact-match location blocks in some nginx versions)
+resolver 127.0.0.11 valid=30s ipv6=off;
+
+server {
+    listen 8080;
+    server_name localhost;
+
+    server_tokens off;
+    autoindex off;
+
+    # ── Security headers ────────────────────────────────────────────────────────
+    # P1-06: frame-ancestors 'none' added to CSP (supplements X-Frame-Options: DENY)
+    # P1-07: data: removed from img-src — no data:image URIs exist in the codebase
+    # P1-08: X-XSS-Protection: 0 — modern recommendation to disable broken legacy auditor
+    # style-src 'unsafe-inline' retained — required by Tailwind CSS and Framer Motion
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "0" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src 'self'; font-src 'self' data:; frame-src 'self' https://open.spotify.com; frame-ancestors 'none';" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    # ── Global proxy timeout defaults ────────────────────────────────────────────
+    # P1-03: prevents a hung upstream holding an nginx worker for 60s (nginx default)
+    proxy_connect_timeout 5s;
+    proxy_send_timeout    10s;
+    proxy_read_timeout    15s;
+
+    location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # ── PRIMARY SERVER APIS ──────────────────────────────────────────────────────
+    # Plex token is injected via header — never exposed in URLs or access logs.
+
+    location /api/plex/photo/ {
+        limit_except GET HEAD { deny all; }
+        # P0-02: reject traversal characters before the path regex check
+        if ($arg_url ~* "(\.\.+|%2e%2e|%2f%2e|%5c)") {
+            return 400;
+        }
+        # P0-01: tightened from ^/library/ to the exact pattern the frontend constructs:
+        #   /library/metadata/<numeric-id>/(thumb|art)/<numeric-id>
+        # SECURITY: if is safe here — only contains 'return 400' (documented safe use)
+        if ($arg_url !~* "^/library/metadata/[0-9]+/(thumb|art)/[0-9]+$") {
+            return 400;
+        }
+        proxy_pass http://10.0.0.195:32400/photo/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Plex-Token "${PLEX_TOKEN}";
+        access_log off;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/plex/ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://10.0.0.195:32400/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Plex-Token "${PLEX_TOKEN}";
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location ~ ^/api/radarr/(.*)$ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://radarr:7878/$1$is_args$args;
+        proxy_set_header Host $host;
+        proxy_set_header X-Api-Key "${RADARR_API_KEY}";
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location ~ ^/api/sonarr/(.*)$ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://sonarr:8989/$1$is_args$args;
+        proxy_set_header Host $host;
+        proxy_set_header X-Api-Key "${SONARR_API_KEY}";
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location ~ ^/api/lidarr/(.*)$ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://lidarr:8686/$1$is_args$args;
+        proxy_set_header Host $host;
+        proxy_set_header X-Api-Key "${LIDARR_API_KEY}";
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location ~ ^/api/prowlarr/(.*)$ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://prowlarr:9696/$1$is_args$args;
+        proxy_set_header Host $host;
+        proxy_set_header X-Api-Key "${PROWLARR_API_KEY}";
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/tautulli/ {
+        limit_except GET HEAD { deny all; }
+        # Tautulli requires apikey as URL param — header auth not supported
+        set $args "${args}&apikey=${TAUTULLI_API_KEY}";
+        proxy_pass http://10.0.0.195:8181/;
+        proxy_set_header Host $host;
+        # access_log off: prevents Tautulli API key appearing in nginx access logs
+        access_log off;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/tautulli-bridge/ {
+        limit_except GET HEAD POST { deny all; }
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        # tautulli-bridge runs with network_mode: host — reach via Docker host gateway
+        # GET /health, /api/history, /api/devices; POST /api/cast
+        proxy_pass http://host.docker.internal:8888/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # P1-02: Seerr POST — tighter write zone to prevent request flooding
+    # SPEC-FIX-02: allow GET (dashboard poll) + POST (submit request) on this path.
+    # Previously limit_except POST blocked the 30s GET status poll with 403.
+    # api_write zone (5r/m) is fine for both: GET polls at 2/min, POST is user-initiated.
+    # $is_args$args added so GET query params (?take=50&filter=pending) pass through.
+    location ~ ^/api/seerr/api/v1/request$ {
+        limit_except GET HEAD POST { deny all; }
+        proxy_pass http://10.0.0.155:5055/api/v1/request$is_args$args;
+        proxy_set_header Host $host;
+        proxy_set_header X-Api-Key "${SEERR_API_KEY}";
+        limit_req zone=api_write burst=5 nodelay;
+    }
+
+    location ~ ^/api/seerr/(.*)$ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://10.0.0.155:5055/$1$is_args$args;
+        proxy_set_header Host $host;
+        proxy_set_header X-Api-Key "${SEERR_API_KEY}";
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location ~ ^/api/media-bot/(.*)$ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://media-bot:8000/$1$is_args$args;
+        proxy_set_header Host $host;
+        # media-bot has higher latency — override server-level timeout defaults
+        proxy_connect_timeout 10s;
+        proxy_read_timeout    90s;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # Narrow unlock: only the port-updater sidecar uses this endpoint
+    location = /api/qbittorrent/api/v2/app/setPreferences {
+        # P0-01: double-guard pattern — closes the empty-string bypass that the map alone cannot close.
+        # When PORT_UPDATER_SECRET is unset, envsubst substitutes "" as an explicit map key,
+        # which would match an absent header. The empty-header rejection below closes that gap.
+        if ($http_x_port_updater_secret = "") {
+            return 403;
+        }
+        if ($port_secret_valid != "1") {
+            return 403;
+        }
+        limit_req zone=api_write burst=2 nodelay;
+        proxy_pass http://gluetun:8080/api/v2/app/setPreferences$is_args$args;
+        proxy_set_header Host gluetun:8080;
+        proxy_set_header Referer http://gluetun:8080/;
+        proxy_set_header Origin http://gluetun:8080;
+        proxy_cookie_domain gluetun localhost;
+        proxy_cookie_path / "/api/qbittorrent/";
+    }
+
+    # All other qBittorrent paths: read-only for the dashboard
+    location ~ ^/api/qbittorrent/(.*)$ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://gluetun:8080/$1$is_args$args;
+        proxy_set_header Host gluetun:8080;
+        proxy_set_header Referer http://gluetun:8080/;
+        proxy_set_header Origin http://gluetun:8080;
+        proxy_cookie_domain gluetun localhost;
+        proxy_cookie_path / "/api/qbittorrent/";
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location ~ ^/api/sabnzbd/(.*)$ {
+        limit_except GET HEAD { deny all; }
+        # SABnzbd requires apikey as URL param — header auth not supported
+        set $args "${args}&apikey=${SABNZBD_API_KEY}";
+        proxy_pass http://sabnzbd:8085/$1$is_args$args;
+        proxy_set_header Host $host;
+        # access_log off: prevents SABnzbd API key appearing in nginx access logs
+        access_log off;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/notifiarr/ {
+        # QB-06: LAN-only — notifiarr metrics should not be reachable externally
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        # P2-07: Use container name via upstream variable (defers DNS, survives restarts).
+        proxy_pass http://notifiarr:5454/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/cloudflared/ {
+        # QB-06: LAN-only — cloudflared metrics should not be reachable externally
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://10.0.0.195:20241/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/gluetun/ {
+        # P1-08: LAN-only — gluetun controls VPN server/exit-IP; must not be externally reachable.
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://gluetun:8000/;
+        proxy_set_header Host $host;
+        proxy_http_version 1.1;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/ntfy/ {
+        limit_except GET HEAD POST { deny all; }
+        # QB-06 / SI-01: LAN-only — push notification broker
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://10.0.0.155:8840/;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/uptime-kuma/ {
+        limit_except GET HEAD { deny all; }
+        # SI-01: LAN-only — uptime monitoring dashboard
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://10.0.0.155:3001/;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location ~ ^/api/glances/(.*)$ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://glances:61208/$1$is_args$args;
+        proxy_set_header Host $host;
+        limit_req zone=api_glances burst=30 nodelay;
+    }
+
+    location /api/flaresolverr/ {
+        # WARNING: FlareSolverr is a POST-accepting outbound HTTP relay.
+        # Restricting to GET/HEAD prevents SSRF amplification attacks.
+        limit_except GET HEAD { deny all; }
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://10.0.0.155:8191/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/musicbrainz-applet/ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://musicbrainz-applet:5050/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # ── SECONDARY SERVER APIS ────────────────────────────────────────────────────
+    location /api/tunarr/ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://10.0.0.155:8000/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/musicbrainz-local/ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://10.0.0.155:5000/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/glances2/ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://10.0.0.155:61208/;
+        proxy_set_header Host $host;
+        # secondary server — tighter timeouts override server-level defaults
+        proxy_connect_timeout 3s;
+        proxy_read_timeout    5s;
+        limit_req zone=api_glances burst=30 nodelay;
+    }
+
+    # ── FLASK BACKEND ────────────────────────────────────────────────────────────
+    # P1 (audit): Journal write — LAN-only to prevent external log injection
+    # Exact-match location takes precedence over the regex below for this path.
+    location = /api/flask/journal {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD POST { deny all; }
+        proxy_pass http://flask-backend:5000/api/journal$is_args$args;
+        proxy_set_header Host $host;
+        # P1-05: $http_content_type reads the incoming request header; $content_type is
+        # undefined in nginx and evaluates to "" (strips the header from proxied requests).
+        proxy_set_header Content-Type $http_content_type;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # P1-04: Explicit POST-only chat location before the catch-all regex.
+    # Previously the catch-all allowed POST on ALL Flask endpoints, enabling rate-limit
+    # zone starvation against read-only routes (/stocks, /port-audit, etc.).
+    location = /api/flask/chat {
+        limit_except POST { deny all; }
+        proxy_pass http://flask-backend:5000/api/chat;
+        proxy_set_header Host $host;
+        proxy_read_timeout 30s;
+        limit_req zone=api_general burst=5 nodelay;
+    }
+
+    # LAN-only: VPN status data should not be reachable from outside the network.
+    location = /api/flask/vpn-status {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://flask-backend:5000/api/vpn-status;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # POST-only, LAN-only — VPN leak test trigger
+    location = /api/flask/vpn/leaktest/refresh {
+        limit_except POST { deny all; }
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://flask-backend:5000/api/vpn/leaktest/refresh;
+        proxy_set_header Host $host;
+        limit_req zone=api_write burst=5 nodelay;
+    }
+
+    location ~ ^/api/flask/(.*)$ {
+        # P1-04: Tightened from GET HEAD POST — POST now handled by explicit locations above.
+        limit_except GET HEAD { deny all; }
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://flask-backend:5000/api/$1$is_args$args;
+        proxy_set_header Host $host;
+        proxy_set_header Content-Type $http_content_type;
+        proxy_read_timeout 30s;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # LAN-only — port audit snapshot
+    location = /api/port-audit {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://flask-backend:5000/api/port-audit;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # LAN-only — firewall status snapshot
+    location = /api/ufw-status {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://flask-backend:5000/api/ufw-status;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # LAN-only — key audit snapshot
+    location = /api/key-audit {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://flask-backend:5000/api/key-audit;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location = /api/bazarr/health {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://flask-backend:5000/api/bazarr/health;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/bazarr/ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://bazarr:6767/;
+        proxy_set_header Host $host;
+        proxy_set_header X-API-KEY "${BAZARR_API_KEY}";
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/hue/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://hue-bridge:5800/api/hue/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=30 nodelay;
+    }
+
+    # NH-21: POST-only restart — LAN-only, rate-limited, name validated in docker-monitor
+    location ~ ^/api/docker/restart/[a-z0-9][a-z0-9_-]*$ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except POST { deny all; }
+        proxy_pass http://docker-monitor:5803;
+        proxy_set_header Host $host;
+        proxy_read_timeout 20s;
+        limit_req zone=api_write burst=5 nodelay;
+    }
+
+    location /api/docker/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://docker-monitor:5803/api/docker/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # Three-location split — GET-only status, POST-only check, GET catch-all
+    location = /api/backup/status {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://restic-sidecar:5802/api/backup/status;
+        proxy_set_header Host $host;
+        proxy_read_timeout 60s;
+        limit_req zone=api_general burst=10 nodelay;
+    }
+
+    location = /api/backup/check {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except POST { deny all; }
+        proxy_pass http://restic-sidecar:5802/api/backup/check;
+        proxy_set_header Host $host;
+        proxy_read_timeout 310s;
+        limit_req zone=api_write burst=1 nodelay;
+    }
+
+    location /api/backup/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://restic-sidecar:5802/api/backup/;
+        proxy_set_header Host $host;
+        proxy_read_timeout 60s;
+        limit_req zone=api_general burst=10 nodelay;
+    }
+
+    # SEC-02: ZenQuotes — exact-match location restricts to the single known path.
+    # Previous prefix location /api/quotes/ exposed the entire zenquotes.io/api/ namespace.
+    # proxy_hide_header prevents upstream CORS/session headers leaking to browser clients.
+    # CONFLICT RESOLVED CONFLICT-4: security-reviewer scope fix + pentester header hiding both applied.
+    location = /api/quotes/random {
+        limit_except GET HEAD { deny all; }
+        proxy_pass https://zenquotes.io/api/random;
+        proxy_set_header Host zenquotes.io;
+        proxy_ssl_server_name on;
+        proxy_ssl_protocols TLSv1.2 TLSv1.3;
+        proxy_ssl_verify on;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        proxy_hide_header Set-Cookie;
+        proxy_hide_header Access-Control-Allow-Origin;
+        proxy_hide_header Vary;
+        proxy_read_timeout 8s;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # SEC-03: Wikipedia "On This Day" — validated regex restricts to events/MM/DD only.
+    # Previous prefix location exposed the entire /api/rest_v1/feed/onthisday/ namespace
+    # including /births, /deaths, /selected — none of which are used by the frontend.
+    # Capture groups [01][0-9] and [0-3][0-9] validate month and day format before proxying.
+    # CONFLICT RESOLVED CONFLICT-4: security-reviewer scope fix + pentester header hiding both applied.
+    location ~ ^/api/history/events/([01][0-9])/([0-3][0-9])$ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/$1/$2;
+        proxy_set_header Host en.wikipedia.org;
+        proxy_ssl_server_name on;
+        proxy_ssl_protocols TLSv1.2 TLSv1.3;
+        proxy_ssl_verify on;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        proxy_hide_header Set-Cookie;
+        proxy_hide_header Access-Control-Allow-Origin;
+        proxy_hide_header Vary;
+        proxy_read_timeout 10s;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # LAN-only — voice control agent
+    location /api/triggercmd/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD POST { deny all; }
+        proxy_pass http://triggercmd:8282/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # LAN-only; permissive methods required for sync client PUT/DELETE
+    location /api/couchdb/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD POST PUT DELETE PATCH { deny all; }
+        proxy_pass http://couchdb:5984/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # LAN-only — presence detection and host wake sidecar
+    location /api/lan/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://host.docker.internal:5804/api/lan/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=30 nodelay;
+    }
+
+    # LAN-only; WebSocket required for terminal
+    location /terminal/clsh/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://claude-terminal-clsh:7683/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 3600s;
+    }
+
+    location /terminal/ttyd/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://claude-terminal-ttyd:7681/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 3600s;
+    }
+
+    location /api/claude-terminal/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://claude-terminal-sidecar:7682/api/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=30 nodelay;
+    }
+
+    # LAN-only; secondary server terminal
+    location /terminal/srv2/clsh/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://10.0.0.155:7683/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 3600s;
+    }
+
+    location /terminal/srv2/ttyd/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://10.0.0.155:7681/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 3600s;
+    }
+
+    location /api/claude-terminal-srv2/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://10.0.0.155:7682/api/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=30 nodelay;
+    }
+
+    # LAN-only; WebSocket upgrade required for noVNC
+    location /obsidian/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 3600s;
+        proxy_pass http://obsidian-remote:8080/;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # LAN-only
+    location /abs/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://audiobookshelf:80/;
+        proxy_set_header Host $host;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # LAN-only
+    location /kavita/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://kavita:5000/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # P1-05: Open-Meteo — add TLS cert verification and explicit timeout
+    location /api/weather/ {
+        # P1-07: Added method restriction — was the only location without limit_except.
+        limit_except GET HEAD { deny all; }
+        proxy_pass https://api.open-meteo.com/;
+        proxy_set_header Host api.open-meteo.com;
+        proxy_ssl_server_name on;
+        proxy_ssl_protocols TLSv1.2 TLSv1.3;
+        # Verify Open-Meteo TLS certificate — CA bundle ships with nginx:1.27-alpine
+        proxy_ssl_verify on;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        # External API may be slower than LAN services
+        proxy_read_timeout 10s;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # P1-04: /assets/ must repeat security headers — nginx add_header does NOT inherit
+    # from parent server block when a child location block defines its own add_header.
+    location /assets/ {
+        root /usr/share/nginx/html;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        add_header X-Frame-Options "DENY" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "0" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src 'self'; font-src 'self' data:; frame-src 'self' https://open.spotify.com; frame-ancestors 'none';" always;
+    }
+
+    error_page 500 502 503 504 /50x.html;
+    location = /50x.html { root /usr/share/nginx/html; }
+}

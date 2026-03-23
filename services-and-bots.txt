@@ -1,0 +1,59 @@
+HOMEPAGE SERVICES & AI CHATBOTS
+Generated: 2026-03-17
+================================================================================
+
+INFRASTRUCTURE SERVICES (CHEM metaphor — Lanthanide/Actinide series)
+----------------------------------------------------------------------
+Symbol  Service               IP / Port                Notes
+------  -------               ---------                -----
+La      PLEX                  10.0.0.195:32400         Media server
+Ce      OVERSEERR             10.0.0.195:5055          Media requests
+Pr      TAUTULLI              10.0.0.195:8181          Plex stats & analytics
+Nd      RADARR                10.0.0.195:7878          Movie manager
+Pm      SONARR                10.0.0.195:8989          TV series manager
+Sm      LIDARR                10.0.0.195:8686          Music manager
+Eu      TUNARR                10.0.0.155:8000          Live channel streaming
+Gd      QBITTORRENT           10.0.0.195:8080          Torrent client (via Gluetun VPN)
+Tb      SABNZBD               10.0.0.195:8085          Usenet client
+Dy      PROWLARR              10.0.0.195:9696          Indexer aggregator
+Ho      CLOUDFLARED           10.0.0.195:20241         Cloudflare tunnel
+Er      NOTIFIARR             10.0.0.195:5454          Notifications
+Tm      FLARESOLVERR          10.0.0.195:8191          Captcha bypass
+Yb      GLUETUN/VPN           (internal)               ProtonVPN WireGuard gateway
+Lu      MUSIC REQUEST PAGE    10.0.0.195:5050          MusicBrainz applet
+Ac      PORT-UPDATER          (sidecar)                VPN forwarded-port sync
+Th      MUSICBRAINZ-DB        10.0.0.155:5000          Local MusicBrainz database
+Pa      BAZARR                10.0.0.195:6767          Subtitle manager
+Np      TAUTULLI-BRIDGE       10.0.0.195:8888          Webhook → Google speaker TTS
+
+
+AI CHATBOTS (BOT_REGISTRY — 20 bots)
+----------------------------------------------------------------------
+Symbol  Bot Name              Group         Description
+------  --------              -----         -----------
+Au      The Auteur            A (cyan)      Obscure critical darlings
+O       Mabel                 A (cyan)      Comfort & warmth picks
+U       Chaos Gremlin         A (cyan)      Genre-clash double bills
+Fe      Future Historian      A (cyan)      Award-winning classics
+Ne      Retro Rick            A (cyan)      Decade-locked local picks
+H       Trailblazer           B (purple)    Trending globally
+He      Animation Buff        B (purple)    Top anime missing from library
+Li      Mood Ring             B (purple)    Emotion-based discovery
+C       Foundation            B (purple)    Essential missing classics
+Si      Algorithm             B (purple)    Similar to your favorites
+Cl      Slasher               B (purple)    Highly-rated missing horror
+Ti      Blockbuster           B (purple)    High-budget missing sci-fi
+Ag      Hidden Gem            B (purple)    High critic / low popularity
+Hg      Shape-Shifter         B (purple)    International/foreign hits
+Pb      Heavyweight           B (purple)    Epics & docuseries 3+ hrs
+V       HDR Junkie            C (green)     Dolby Vision/HDR10+ >60Mbps
+S       Sonic Boom            C (green)     Atmos/DTS:X/TrueHD 7.1
+Cr      Purist                C (green)     Remux/high-bitrate encodes
+Cu      Bandwidth Miser       C (green)     HEVC/AV1 efficient encodes
+Sb      Playlist Alchemist    D (blue)      Spotify mood x Lidarr library
+
+
+SERVERS
+----------------------------------------------------------------------
+Primary server:    10.0.0.195  (Plex, *arr stack, downloaders, etc.)
+Secondary server:  10.0.0.155  (Tunarr, MusicBrainz Local DB)
