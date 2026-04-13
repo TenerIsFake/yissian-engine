@@ -48,7 +48,7 @@ function buildLayout(registry) {
   return { positions, stratumGroups };
 }
 
-const DinoGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const DinoGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, cardTransform }) => {
   const { positions, stratumGroups } = useMemo(() => buildLayout(elementRegistry), [elementRegistry]);
 
   // Skeletal connectors: connect services in the same clade
@@ -131,14 +131,14 @@ const DinoGrid = ({ statsMap, onElementClick, elementRegistry }) => {
           const stats = statsMap[el.id] || { level: 0, isBoiling: false, details: [], online: false };
           return (
             <div key={el.id} style={{ position: 'absolute', left: x, top: y }}>
-              <DinoCard element={el} stats={stats} onClick={onElementClick} />
+              <DinoCard element={el} stats={stats} onClick={onElementClick} cardDisplay={cardTransform?.(el)} />
             </div>
           );
         })}
 
         <div style={{ position: 'absolute', bottom: 6, right: 12, fontSize: 9, fontFamily: 'monospace',
           color: 'rgba(255,255,255,0.1)', letterSpacing: '0.3em', pointerEvents: 'none' }}>
-          ◆ GEOLOGICAL RECORD — MESOZOIC ERA ◆
+          {gridTitle || '◆ GEOLOGICAL RECORD — MESOZOIC ERA ◆'}
         </div>
       </div>
     </div>

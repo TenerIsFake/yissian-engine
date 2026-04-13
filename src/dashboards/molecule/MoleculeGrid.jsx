@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { activeCATRef } from '../../themes/ThemeContext.jsx';
 import { ALL_ELEMENTS } from '../sharedGridData.js';
 import MoleculeCard from './MoleculeCard.jsx';
+import MolecularModel3D from './MolecularModel3D.jsx';
 
 const MONO = 'monospace';
 const CELL_SIZE = { width: 72, height: 80, borderRadius: 6 };
@@ -48,7 +49,7 @@ function gridToPixel(period, group) {
   };
 }
 
-const MoleculeGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const MoleculeGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, cardTransform }) => {
   // T2-02: servicePositions and cells moved into useMemo. Previously these ran on every
   // render (every stats poll), iterating 118 ALL_ELEMENTS entries and the full registry.
   // Now they recompute only when elementRegistry changes (not on stats updates).
@@ -144,7 +145,7 @@ const MoleculeGrid = ({ statsMap, onElementClick, elementRegistry }) => {
           {cells.map(cell => (
             <div key={cell.key} style={{ gridRow: cell.period, gridColumn: cell.group }}>
               {cell.isService
-                ? <MoleculeCard element={cell.el} stats={statsMap[cell.el.id] || { level: 0, isBoiling: false, details: [], online: false }} onClick={onElementClick} />
+                ? <MoleculeCard element={cell.el} stats={statsMap[cell.el.id] || { level: 0, isBoiling: false, details: [], online: false }} onClick={onElementClick} cardDisplay={cardTransform?.(cell.el)} />
                 : <InertAtom catKey={cell.catKey} />
               }
             </div>
@@ -155,9 +156,13 @@ const MoleculeGrid = ({ statsMap, onElementClick, elementRegistry }) => {
           <div key="ac-ref" style={{ gridRow: 7, gridColumn: 3 }}>
             <ReactionVesselPlaceholder rangeLabel="SERIES β" seriesLabel="89–103" color="#FFEAA7" borderOpacity="33" />
           </div>
-          <div style={{ gridRow: 8, gridColumn: '1 / span 18', display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+          {/* 3D molecular model showcase */}
+          <div style={{ gridRow: 8, gridColumn: '1 / span 4', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <MolecularModel3D size={80} color="rgba(0,255,200,0.25)" />
+          </div>
+          <div style={{ gridRow: 8, gridColumn: '5 / span 14', display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
             <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.15)', fontFamily: MONO, letterSpacing: '0.3em' }}>
-              ◆ MOLECULAR BOND DIAGRAM ◆
+              {gridTitle || '◆ MOLECULAR BOND DIAGRAM ◆'}
             </span>
           </div>
         </div>

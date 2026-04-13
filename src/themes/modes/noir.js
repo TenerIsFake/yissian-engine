@@ -1,0 +1,147 @@
+import { createModeTiers } from '../paletteHelpers.js';
+
+// ── NOIR — Film noir / detective / 1940s mystery ─────────────
+// T1: Blackout     — nearly monochrome, ink on paper
+// T2: Case File    — muted golds, blood reds, smoke blues
+// T3: Stakeout     — slow rain, distant city lights
+// T4: Chase        — heavier rain, searchlight sweeps, smoke wisps
+// T5: Shootout     — downpour, frequent searchlights, muzzle flashes
+
+const t2 = {
+  bgBase: '#08070A',
+  accent: '#D4A017',
+  dotGridColor: 'rgba(212,160,23,0.03)',
+  cat: {
+    ALKALI:     { bg: 'rgba(212,160,23,0.09)',   border: '#D4A017', text: '#E4B027', glow: 'rgba(212,160,23,0.40)' },
+    ALKALINE:   { bg: 'rgba(180,60,60,0.09)',    border: '#B43C3C', text: '#CC5555', glow: 'rgba(180,60,60,0.40)' },
+    TRANSITION: { bg: 'rgba(100,110,140,0.09)',  border: '#646E8C', text: '#8090B0', glow: 'rgba(100,110,140,0.35)' },
+    HALOGEN:    { bg: 'rgba(220,180,120,0.08)',  border: '#DCB478', text: '#ECC488', glow: 'rgba(220,180,120,0.30)' },
+    NOBLE:      { bg: 'rgba(80,90,120,0.09)',    border: '#505A78', text: '#7080A0', glow: 'rgba(80,90,120,0.40)' },
+    LANTHANIDE: { bg: 'rgba(200,150,80,0.09)',   border: '#C89650', text: '#D8A660', glow: 'rgba(200,150,80,0.35)' },
+    POST:       { bg: 'rgba(90,85,80,0.07)',     border: '#5A5550', text: '#7A7570', glow: 'rgba(90,85,80,0.25)' },
+    METALLOID:  { bg: 'rgba(120,100,80,0.07)',   border: '#786450', text: '#988470', glow: 'rgba(120,100,80,0.25)' },
+    NONMETAL:   { bg: 'rgba(200,190,175,0.07)',  border: '#C8BEAF', text: '#D8CEBF', glow: 'rgba(200,190,175,0.20)' },
+    ACTINIDE:   { bg: 'rgba(140,40,40,0.08)',    border: '#8C2828', text: '#AA4444', glow: 'rgba(140,40,40,0.35)' },
+    PNICTOGEN:  { bg: 'rgba(150,120,70,0.08)',   border: '#967846', text: '#B09060', glow: 'rgba(150,120,70,0.35)' },
+    CHALCOGEN:  { bg: 'rgba(180,170,140,0.08)',  border: '#B4AA8C', text: '#CCC0A0', glow: 'rgba(180,170,140,0.30)' },
+  },
+};
+
+const sceneConfig = {
+  particles: [
+    {
+      id: 'rain',
+      behavior: 'fall',
+      render: 'line',
+      spawnRate: [0, 0, 0.5, 1.0, 1.0],
+      speed: [4, 8],
+      size: [0.5, 1],
+      color: '#6688AA',
+      opacity: 0.42,
+      lifetime: [30, 60],
+      wind: 1.5,
+    },
+    {
+      id: 'cityLight',
+      behavior: 'twinkle',
+      render: 'dot',
+      count: [0, 0, 250, 420, 600],
+      size: [0.5, 1.5],
+      color: '#DDAA44',
+      opacity: [0.4, 0.8],
+      twinkleSpeed: [0.003, 0.01],
+      lifetime: Infinity,
+    },
+    {
+      id: 'smoke',
+      behavior: 'rise',
+      render: 'dot',
+      spawnRate: [0, 0, 0, 0.08, 0.18],
+      speed: [0.2, 0.6],
+      size: [3, 8],
+      color: '#444444',
+      opacity: 0.4,
+      lifetime: [150, 350],
+      driftFreq: 0.008,
+      driftAmplitude: 60,
+    },
+    {
+      id: 'searchlight',
+      behavior: 'flash',
+      render: 'glow',
+      spawnRate: [0, 0, 0, 0.015, 0.06],
+      size: [5, 15],
+      glowRadius: 40,
+      color: '#FFFFCC',
+      opacity: 0.4,
+      lifetime: [40, 80],
+    },
+    {
+      id: 'muzzleFlash',
+      behavior: 'flash',
+      render: 'glow',
+      spawnRate: [0, 0, 0, 0, 0.03],
+      size: [2, 5],
+      glowRadius: 15,
+      color: '#FFCC44',
+      opacity: 1.0,
+      lifetime: [5, 10],
+      cascade: true,
+    },
+    {
+      id: 'neonReflection',
+      behavior: 'twinkle',
+      render: 'glow',
+      count: [0, 0, 0, 120, 250],
+      size: [1, 3],
+      glowRadius: 6,
+      color: '#FF4488',
+      colorVariants: ['#FF4488', '#44AAFF', '#DDAA44'],
+      opacity: [0.4, 0.8],
+      twinkleSpeed: [0.004, 0.015],
+      lifetime: Infinity,
+    },
+    {
+      id: 'cigaretteSmoke',
+      behavior: 'rise',
+      render: 'glow',
+      spawnRate: [0, 0, 0, 0.04, 0.1],
+      speed: [0.1, 0.4],
+      size: [2, 5],
+      glowRadius: 8,
+      color: '#555555',
+      opacity: [0.4, 0.8],
+      lifetime: [200, 450],
+      driftFreq: 0.006,
+      driftAmplitude: 40,
+    },
+    {
+      id: 'headlightBeam',
+      behavior: 'linear',
+      render: 'glow',
+      spawnRate: [0, 0, 0, 0.02, 0.06],
+      speed: [2, 5],
+      angle: [170, 190],
+      size: [3, 8],
+      glowRadius: 20,
+      color: '#FFFFDD',
+      opacity: [0.4, 0.8],
+      lifetime: [40, 100],
+    },
+  ],
+};
+
+export default createModeTiers('NOIR', {
+  tierNames: ['Blackout', 'Case File', 'Stakeout', 'Chase', 'Shootout'],
+  tierTooltips: [
+    'Nearly monochrome ink on paper',
+    'Muted golds, blood reds, smoke blues',
+    'Slow rain and distant city lights',
+    'Heavier rain with searchlights',
+    'Full noir downpour and muzzle flashes',
+  ],
+  t1: { bgBase: '#0A0A0A', accent: '#999999', dotGridColor: 'rgba(153,153,153,0.03)' },
+  t2,
+  sceneConfig,
+  flavorHue: 40,
+});

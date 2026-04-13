@@ -36,7 +36,7 @@ function nextRelative(iso) {
   return `in ${Math.floor(h / 24)}d`;
 }
 
-export const CronMonitorWidget = () => {
+export const CronMonitorWidget = ({ headerLabel }) => {
   const [tab, setTab] = useState('schedule');
   const [collapsed, setCollapsed] = useState(false);
 
@@ -60,7 +60,7 @@ export const CronMonitorWidget = () => {
         style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
           background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left' }}>
         <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.4)' }}>
-          ◆ CRON_MONITOR ◆ {jobs.length} jobs
+          {headerLabel || '◆ CRON_MONITOR ◆'} {jobs.length} jobs
         </span>
         <span aria-hidden="true" style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(255,255,255,0.2)', marginLeft: 'auto' }}>
           {collapsed ? '▶' : '▼'}

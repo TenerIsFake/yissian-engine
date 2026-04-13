@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 const MONO = 'monospace';
 
-export const DnsLeakCard = () => {
+export const DnsLeakCard = ({ headerLabel }) => {
   const qc = useQueryClient();
 
   const { data, isFetching } = useQuery({
@@ -43,7 +43,7 @@ export const DnsLeakCard = () => {
   return (
     <div className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-md px-6 py-4 h-full">
       <div className="text-[9px] font-mono tracking-[0.3em] text-white/25 mb-3 uppercase">
-        ◆ QBIT_VPN ◆ Gluetun·Integrity
+        {headerLabel || '◆ QBIT_VPN ◆ Gluetun·Integrity'}
       </div>
 
       {/* Status */}

@@ -59,7 +59,7 @@ function buildDucts(layout) {
     });
 }
 
-const ForgeGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const ForgeGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, gridSubtitle, cardTransform }) => {
   const layout = useMemo(() => buildLayout(elementRegistry), [elementRegistry]);
   const ducts  = useMemo(() => buildDucts(layout), [layout]);
 
@@ -106,14 +106,14 @@ const ForgeGrid = ({ statsMap, onElementClick, elementRegistry }) => {
           fontSize: 8, fontFamily: 'monospace', color: 'rgba(255,255,255,0.18)',
           letterSpacing: '0.4em', pointerEvents: 'none',
         }}>
-          ◆ MASTER HEARTH ◆
+          {gridTitle || '◆ MASTER HEARTH ◆'}
         </div>
         <div aria-hidden="true" style={{
           position: 'absolute', bottom: CH * 0.02, left: '50%', transform: 'translateX(-50%)',
           fontSize: 8, fontFamily: 'monospace', color: 'rgba(255,255,255,0.18)',
           letterSpacing: '0.4em', pointerEvents: 'none',
         }}>
-          ◆ WORKSHOP FLOOR ◆
+          {gridSubtitle || '◆ WORKSHOP FLOOR ◆'}
         </div>
 
         {/* Service cards — FE-09: breathing amplitude modulated by load bucket */}
@@ -134,7 +134,7 @@ const ForgeGrid = ({ statsMap, onElementClick, elementRegistry }) => {
               animate={breathAnim}
               transition={breathTrans}
             >
-              <ForgeCard element={el} stats={stats} onClick={onElementClick} />
+              <ForgeCard element={el} stats={stats} onClick={onElementClick} cardDisplay={cardTransform?.(el)} />
             </motion.div>
           );
         })}

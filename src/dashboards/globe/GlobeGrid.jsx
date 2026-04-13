@@ -3,8 +3,9 @@ import { motion } from 'framer-motion';
 import { activeCATRef } from '../../themes/ThemeContext.jsx';
 import GlobeCard from './GlobeCard.jsx';
 import { GLOBE_OVERLAY } from './globeConfig.js';
+import GlobeWireframe3D from './GlobeWireframe3D.jsx';
 
-const CARD_W = 72, CARD_H = 80;
+const CARD_W = 64, CARD_H = 88;
 const CW = 1300, CH = 660;
 const MAP_PAD = { left: 20, right: 20, top: 20, bottom: 20 };
 
@@ -96,7 +97,7 @@ function buildArcs(positions) {
   return arcs;
 }
 
-const GlobeGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const GlobeGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, cardTransform }) => {
   const positions = useMemo(() => buildLayout(elementRegistry), [elementRegistry]);
   const arcs = useMemo(() => buildArcs(positions), [positions]);
 
@@ -125,6 +126,11 @@ const GlobeGrid = ({ statsMap, onElementClick, elementRegistry }) => {
         <div style={{ position: 'absolute', inset: 0,
           background: 'linear-gradient(180deg, rgba(0,20,50,0.5) 0%, rgba(0,10,30,0.3) 100%)',
           borderRadius: 4 }} />
+
+        {/* 3D wireframe globe centerpiece */}
+        <div style={{ position: 'absolute', left: CW / 2 - 70, top: CH / 2 - 70, zIndex: 1, opacity: 0.4, pointerEvents: 'none' }}>
+          <GlobeWireframe3D size={140} color="rgba(80,200,120,0.2)" />
+        </div>
 
         {/* SVG: graticule + great circle arcs */}
         <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none', width: '100%', height: '100%' }}>
@@ -168,14 +174,14 @@ const GlobeGrid = ({ statsMap, onElementClick, elementRegistry }) => {
               style={{ position: 'absolute', left: x, top: y }}
               whileHover={prefersReducedMotion ? {} : { scale: 1.12, zIndex: 80 }}
             >
-              <GlobeCard element={el} stats={stats} onClick={onElementClick} />
+              <GlobeCard element={el} stats={stats} onClick={onElementClick} cardDisplay={cardTransform?.(el)} />
             </motion.div>
           );
         })}
 
         <div style={{ position: 'absolute', bottom: 6, right: 12, fontSize: 9, fontFamily: 'monospace',
           color: 'rgba(255,255,255,0.1)', letterSpacing: '0.3em', pointerEvents: 'none' }}>
-          ◆ MERCATOR PROJECTION — WGS84 ◆
+          {gridTitle || '◆ MERCATOR PROJECTION — WGS84 ◆'}
         </div>
       </div>
     </div>

@@ -7,11 +7,10 @@ const MONO = 'monospace';
 const SECTION_DEFS = [
   { id: 'header',       label: 'Header / Clock' },
   { id: 'services',     label: 'Services Grid' },
-  { id: 'ai-row',       label: 'AI / Utility Row' },
-  { id: 'weather-vpn',  label: 'Weather + VPN + Quick Launch' },
+  { id: 'weather-vpn',  label: 'Weather + VPN' },
   { id: 'plex',         label: 'Plex Ecosystem Row' },
   { id: 'security',     label: 'Security Badge Row' },
-  { id: 'quote',        label: 'Quote + OnThisDay' },
+  { id: 'daily-digest', label: 'Daily Digest' },
   { id: 'system-metrics', label: 'System Metrics Panel' },
   { id: 'discovery',    label: 'Discovery Ticker' },
   { id: 'lab-journal',  label: 'Lab Journal' },
@@ -84,12 +83,6 @@ const CommandPalette = ({ open, onClose, elementRegistry = [], dashboardMode = '
     } else if (item.type === 'bot') {
       localStorage.setItem('chatwidget-selected-bot', item.id);
       window.dispatchEvent(new CustomEvent('select-bot', { detail: { botId: item.id } }));
-      const ref = sectionRefs['ai-row'];
-      if (ref?.current) {
-        ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      } else {
-        document.querySelector('[data-section="ai-row"]')?.scrollIntoView({ behavior: 'smooth' });
-      }
     } else if (item.type === 'section') {
       const ref = sectionRefs[item.id];
       const el = ref?.current ?? document.querySelector(`[data-section="${item.id}"]`);
@@ -219,7 +212,7 @@ const CommandPalette = ({ open, onClose, elementRegistry = [], dashboardMode = '
         {/* Footer hint */}
         <div style={{ padding: '7px 16px', borderTop: '1px solid rgba(255,255,255,0.06)',
           display: 'flex', gap: 16 }}>
-          {[['↑↓', 'navigate'], ['↵', 'open'], ['esc', 'close']].map(([key, label]) => (
+          {[['Ctrl+K', 'open palette'], ['↑↓', 'navigate'], ['Tab', 'next'], ['↵', 'open'], ['esc', 'close']].map(([key, label]) => (
             <span key={key} style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.1em' }}>
               <kbd style={{ marginRight: 4, padding: '1px 5px', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: 3, color: 'rgba(255,255,255,0.35)' }}>{key}</kbd>

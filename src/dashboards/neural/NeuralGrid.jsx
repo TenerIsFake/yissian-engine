@@ -100,7 +100,7 @@ const SignalPulse = ({ x1, y1, x2, y2, delay, color }) => {
 
 const LAYER_LABELS = ['INPUT\nLAYER', 'HIDDEN\nLAYER', 'OUTPUT\nLAYER'];
 
-const NeuralGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const NeuralGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, cardTransform }) => {
   const positions = useMemo(() => buildDAGLayout(elementRegistry), [elementRegistry]);
   const connections = useMemo(() => buildConnections(positions), [positions]);
 
@@ -168,14 +168,14 @@ const NeuralGrid = ({ statsMap, onElementClick, elementRegistry }) => {
           const stats = statsMap[el.id] || { level: 0, isBoiling: false, details: [], online: false };
           return (
             <div key={el.id} style={{ position: 'absolute', left: x, top: y }}>
-              <NeuralCard element={el} stats={stats} onClick={onElementClick} />
+              <NeuralCard element={el} stats={stats} onClick={onElementClick} cardDisplay={cardTransform?.(el)} />
             </div>
           );
         })}
 
         <div style={{ position: 'absolute', bottom: 8, right: 12, fontSize: 9, fontFamily: 'monospace',
           color: 'rgba(255,255,255,0.1)', letterSpacing: '0.3em', pointerEvents: 'none' }}>
-          ◆ NEURAL MESH — LIVE TOPOLOGY ◆
+          {gridTitle || '◆ NEURAL MESH — LIVE TOPOLOGY ◆'}
         </div>
       </div>
     </div>

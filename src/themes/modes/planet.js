@@ -1,0 +1,147 @@
+import { createModeTiers } from '../paletteHelpers.js';
+
+// ── PLANET — Planetary / astronomical / solar system ─────────
+// T1: Void        — dark with cool grey-blue
+// T2: Terrestrial — warm earth tones + cosmic blues, burnt orange accent
+// T3: Orbit       — slow orbital debris, distant planetary glow
+// T4: Solar Wind  — more debris, aurora-like waves, dust drift
+// T5: Supernova   — dense debris, frequent auroras, rare supernova flash
+
+const t2 = {
+  bgBase: '#0C0806',
+  accent: '#E07020',
+  dotGridColor: 'rgba(224,112,32,0.04)',
+  cat: {
+    ALKALI:     { bg: 'rgba(224,112,32,0.09)',    border: '#E07020', text: '#F09050', glow: 'rgba(224,112,32,0.45)' },
+    ALKALINE:   { bg: 'rgba(205,133,63,0.09)',    border: '#CD853F', text: '#DEB887', glow: 'rgba(205,133,63,0.40)' },
+    TRANSITION: { bg: 'rgba(176,101,54,0.09)',    border: '#B06536', text: '#D4956A', glow: 'rgba(176,101,54,0.40)' },
+    HALOGEN:    { bg: 'rgba(255,152,0,0.09)',     border: '#FF9800', text: '#FFB74D', glow: 'rgba(255,152,0,0.40)' },
+    NOBLE:      { bg: 'rgba(66,133,244,0.09)',    border: '#4285F4', text: '#7BAAF7', glow: 'rgba(66,133,244,0.45)' },
+    LANTHANIDE: { bg: 'rgba(255,183,77,0.08)',    border: '#FFB74D', text: '#FFD54F', glow: 'rgba(255,183,77,0.35)' },
+    POST:       { bg: 'rgba(120,110,100,0.07)',   border: '#786E64', text: '#A09890', glow: 'rgba(120,110,100,0.25)' },
+    METALLOID:  { bg: 'rgba(100,149,237,0.07)',   border: '#6495ED', text: '#90B8F8', glow: 'rgba(100,149,237,0.30)' },
+    NONMETAL:   { bg: 'rgba(210,180,140,0.07)',   border: '#D2B48C', text: '#E8D4B8', glow: 'rgba(210,180,140,0.20)' },
+    ACTINIDE:   { bg: 'rgba(139,69,19,0.08)',     border: '#8B4513', text: '#CD853F', glow: 'rgba(139,69,19,0.35)' },
+    PNICTOGEN:  { bg: 'rgba(244,164,96,0.09)',    border: '#F4A460', text: '#FFDAB9', glow: 'rgba(244,164,96,0.40)' },
+    CHALCOGEN:  { bg: 'rgba(70,130,180,0.09)',    border: '#4682B4', text: '#87CEEB', glow: 'rgba(70,130,180,0.40)' },
+  },
+};
+
+const sceneConfig = {
+  particles: [
+    {
+      id: 'debris',
+      behavior: 'linear',
+      render: 'dot',
+      spawnRate: [0, 0, 0.14, 0.32, 0.6],
+      speed: [0.5, 2],
+      angle: [160, 250],
+      size: [1, 3],
+      color: '#A09080',
+      opacity: [0.4, 0.8],
+      lifetime: [150, 350],
+    },
+    {
+      id: 'planetGlow',
+      behavior: 'twinkle',
+      render: 'glow',
+      count: [0, 0, 140, 240, 350],
+      size: [3, 7],
+      glowRadius: 15,
+      color: '#E07020',
+      opacity: [0.4, 0.83],
+      twinkleSpeed: [0.004, 0.012],
+      lifetime: Infinity,
+    },
+    {
+      id: 'aurora',
+      behavior: 'wave',
+      render: 'glow',
+      spawnRate: [0, 0, 0, 0.09, 0.23],
+      speed: [0.3, 1],
+      size: [4, 8],
+      glowRadius: 20,
+      color: '#4285F4',
+      opacity: [0.4, 0.9],
+      waveAmplitude: [15, 40],
+      waveFrequency: [0.02, 0.05],
+      lifetime: [100, 250],
+    },
+    {
+      id: 'dustDrift',
+      behavior: 'drift',
+      render: 'dot',
+      count: [0, 0, 0, 260, 520],
+      size: [0.5, 1.5],
+      color: '#D2B48C',
+      opacity: [0.4, 0.8],
+      driftSpeed: [0.2, 0.8],
+      lifetime: Infinity,
+    },
+    {
+      id: 'supernovaFlash',
+      behavior: 'flash',
+      render: 'glow',
+      spawnRate: [0, 0, 0, 0, 0.012],
+      size: [6, 12],
+      glowRadius: 30,
+      color: '#FFFFFF',
+      opacity: 1.0,
+      cascade: true,
+      lifetime: [20, 50],
+    },
+    {
+      id: 'ringDust',
+      behavior: 'orbit',
+      render: 'dot',
+      count: [0, 0, 0, 180, 400],
+      size: [0.5, 2],
+      color: '#CD853F',
+      opacity: [0.4, 0.8],
+      orbitSpeed: [0.003, 0.01],
+      orbitRadius: [40, 120],
+      lifetime: Infinity,
+    },
+    {
+      id: 'solarWind',
+      behavior: 'drift',
+      render: 'trail',
+      spawnRate: [0, 0, 0, 0.06, 0.15],
+      speed: [1, 3],
+      size: [0.5, 1.5],
+      trailLength: 15,
+      color: '#FFB74D',
+      opacity: [0.4, 0.8],
+      driftSpeed: [0.5, 1.5],
+      lifetime: [80, 200],
+    },
+    {
+      id: 'cometTail',
+      behavior: 'curve',
+      render: 'trail',
+      spawnRate: [0, 0, 0, 0.03, 0.08],
+      speed: [1.5, 4],
+      size: [1, 3],
+      trailLength: 20,
+      color: '#87CEEB',
+      opacity: [0.4, 0.8],
+      cascade: true,
+      lifetime: [100, 250],
+    },
+  ],
+};
+
+export default createModeTiers('PLANET', {
+  tierNames: ['Void', 'Terrestrial', 'Orbit', 'Solar Wind', 'Supernova'],
+  tierTooltips: [
+    'Dark void — cool grey-blue stillness',
+    'Warm earth tones with cosmic blues',
+    'Slow orbital debris, distant planetary glow',
+    'Solar wind with auroras and dust drift',
+    'Full supernova spectacle',
+  ],
+  t1: { bgBase: '#08090C', accent: '#A0A8B8', dotGridColor: 'rgba(160,168,184,0.03)' },
+  t2,
+  sceneConfig,
+  flavorHue: 20,
+});

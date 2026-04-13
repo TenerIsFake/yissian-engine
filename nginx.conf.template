@@ -25,7 +25,7 @@ map $http_x_port_updater_secret $port_secret_valid {
 
 # Docker's internal DNS in http{} context — applies to ALL variable-based proxy_pass
 # (server-context resolver only applies to exact-match location blocks in some nginx versions)
-resolver 127.0.0.11 valid=30s ipv6=off;
+resolver 127.0.0.11 valid=5s ipv6=off;
 
 server {
     listen 8080;
@@ -36,15 +36,15 @@ server {
 
     # ── Security headers ────────────────────────────────────────────────────────
     # P1-06: frame-ancestors 'none' added to CSP (supplements X-Frame-Options: DENY)
-    # P1-07: data: removed from img-src — no data:image URIs exist in the codebase
+    # P1-07: data: added back to img-src — TOTP QR code is a data:image/svg+xml URI
     # P1-08: X-XSS-Protection: 0 — modern recommendation to disable broken legacy auditor
     # style-src 'unsafe-inline' retained — required by Tailwind CSS and Framer Motion
     add_header X-Frame-Options "DENY" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "0" always;
     add_header Referrer-Policy "no-referrer" always;
-    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src 'self'; font-src 'self' data:; frame-src 'self' https://open.spotify.com; frame-ancestors 'none';" always;
+    add_header Permissions-Policy "camera=(), microphone=(self), geolocation=()" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; font-src 'self' data:; frame-src 'self' https://open.spotify.com; frame-ancestors 'none';" always;
     add_header Strict-Transport-Security "max-age=31536000" always;
 
     # ── Global proxy timeout defaults ────────────────────────────────────────────
@@ -70,8 +70,9 @@ server {
         }
         # P0-01: tightened from ^/library/ to the exact pattern the frontend constructs:
         #   /library/metadata/<numeric-id>/(thumb|art)/<numeric-id>
+        # Accepts both literal / and URL-encoded %2F — browsers encode query params.
         # SECURITY: if is safe here — only contains 'return 400' (documented safe use)
-        if ($arg_url !~* "^/library/metadata/[0-9]+/(thumb|art)/[0-9]+$") {
+        if ($arg_url !~* "^(%2[Ff]|/)library(%2[Ff]|/)metadata(%2[Ff]|/)[0-9]+(%2[Ff]|/)(thumb|art)(%2[Ff]|/)[0-9]+$") {
             return 400;
         }
         proxy_pass http://10.0.0.195:32400/photo/;
@@ -334,6 +335,21 @@ server {
         limit_req zone=api_general burst=60 nodelay;
     }
 
+    location /api/snappymail/ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://10.0.0.155:8086/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/bhyve/ {
+        limit_except GET HEAD { deny all; }
+        set $upstream_bhyve bhyve-bridge;
+        proxy_pass http://$upstream_bhyve:5801/api/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
     location /api/glances2/ {
         limit_except GET HEAD { deny all; }
         proxy_pass http://10.0.0.155:61208/;
@@ -369,7 +385,20 @@ server {
         limit_except POST { deny all; }
         proxy_pass http://flask-backend:5000/api/chat;
         proxy_set_header Host $host;
-        proxy_read_timeout 30s;
+        proxy_read_timeout 120s;
+        proxy_buffering off;
+        proxy_cache off;
+        chunked_transfer_encoding on;
+        add_header X-Accel-Buffering no;
+        limit_req zone=api_general burst=5 nodelay;
+    }
+
+    # NH-54: Chat session, auth, and persona endpoints (regex to override the GET-only catch-all)
+    location ~ ^/api/flask/chat/(sessions|personas)(/.*)?$ {
+        limit_except GET POST DELETE { deny all; }
+        proxy_pass http://flask-backend:5000/api/chat/$1$2$is_args$args;
+        proxy_set_header Host $host;
+        proxy_read_timeout 10s;
         limit_req zone=api_general burst=5 nodelay;
     }
 
@@ -383,6 +412,7 @@ server {
         limit_except GET HEAD { deny all; }
         proxy_pass http://flask-backend:5000/api/vpn-status;
         proxy_set_header Host $host;
+        proxy_read_timeout 30s;
         limit_req zone=api_general burst=60 nodelay;
     }
 
@@ -397,6 +427,20 @@ server {
         proxy_pass http://flask-backend:5000/api/vpn/leaktest/refresh;
         proxy_set_header Host $host;
         limit_req zone=api_write burst=5 nodelay;
+    }
+
+    # NH-70: Deploy control — POST to enqueue, GET for status/history
+    location /api/flask/deploy {
+        limit_except GET HEAD POST { deny all; }
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://flask-backend:5000/api/deploy;
+        proxy_set_header Host $host;
+        proxy_set_header Content-Type $http_content_type;
+        limit_req zone=api_write burst=3 nodelay;
     }
 
     location ~ ^/api/flask/(.*)$ {
@@ -427,15 +471,15 @@ server {
         limit_req zone=api_general burst=60 nodelay;
     }
 
-    # LAN-only — firewall status snapshot
-    location = /api/ufw-status {
+    # LAN-only — firewall & SRV-2 status snapshot
+    location = /api/firewall-status {
         allow 10.0.0.0/8;
         allow 172.16.0.0/12;
         allow 192.168.0.0/16;
         allow 127.0.0.0/8;
         deny all;
         limit_except GET HEAD { deny all; }
-        proxy_pass http://flask-backend:5000/api/ufw-status;
+        proxy_pass http://flask-backend:5000/api/firewall-status;
         proxy_set_header Host $host;
         limit_req zone=api_general burst=60 nodelay;
     }
@@ -521,7 +565,7 @@ server {
         proxy_pass http://restic-sidecar:5802/api/backup/status;
         proxy_set_header Host $host;
         proxy_read_timeout 60s;
-        limit_req zone=api_general burst=10 nodelay;
+        limit_req zone=api_general burst=60 nodelay;
     }
 
     location = /api/backup/check {
@@ -547,7 +591,7 @@ server {
         proxy_pass http://restic-sidecar:5802/api/backup/;
         proxy_set_header Host $host;
         proxy_read_timeout 60s;
-        limit_req zone=api_general burst=10 nodelay;
+        limit_req zone=api_general burst=60 nodelay;
     }
 
     # SEC-02: ZenQuotes — exact-match location restricts to the single known path.
@@ -777,8 +821,8 @@ server {
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-XSS-Protection "0" always;
         add_header Referrer-Policy "no-referrer" always;
-        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src 'self'; font-src 'self' data:; frame-src 'self' https://open.spotify.com; frame-ancestors 'none';" always;
+        add_header Permissions-Policy "camera=(), microphone=(self), geolocation=()" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; font-src 'self' data:; frame-src 'self' https://open.spotify.com; frame-ancestors 'none';" always;
     }
 
     error_page 500 502 503 504 /50x.html;

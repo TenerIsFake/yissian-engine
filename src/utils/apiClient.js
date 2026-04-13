@@ -1,6 +1,6 @@
-export async function apiFetch(url, options = {}) {
+export async function apiFetch(url, { timeout = 8000, ...options } = {}) {
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), 8000);
+  const id = setTimeout(() => controller.abort(), timeout);
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

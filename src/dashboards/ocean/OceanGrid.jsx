@@ -84,7 +84,7 @@ const WAVE_ROWS = [
   { y: 0.20, opacity: 0.06 },
 ];
 
-const OceanGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const OceanGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, cardTransform }) => {
   const positions   = useMemo(() => buildLayout(elementRegistry), [elementRegistry]);
   const connections = useMemo(() => buildConnections(positions), [positions]);
 
@@ -164,7 +164,7 @@ const OceanGrid = ({ statsMap, onElementClick, elementRegistry }) => {
               style={{ position: 'absolute', left: x, top: y }}
               whileHover={prefersReducedMotion ? {} : { scale: 1.12, zIndex: 80 }}
             >
-              <OceanCard element={el} stats={stats} onClick={onElementClick} />
+              <OceanCard element={el} stats={stats} onClick={onElementClick} cardDisplay={cardTransform?.(el)} />
             </motion.div>
           );
         })}
@@ -174,7 +174,7 @@ const OceanGrid = ({ statsMap, onElementClick, elementRegistry }) => {
           fontSize: 9, fontFamily: 'monospace',
           color: 'rgba(255,255,255,0.10)', letterSpacing: '0.3em', pointerEvents: 'none',
         }}>
-          ◆ BATHYMETRIC DEPTH CHART ◆
+          {gridTitle || '◆ BATHYMETRIC DEPTH CHART ◆'}
         </div>
       </div>
     </div>

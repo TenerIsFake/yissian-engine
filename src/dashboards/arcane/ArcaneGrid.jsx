@@ -60,7 +60,7 @@ function buildGeometry(items, r) {
   return d;
 }
 
-const ArcaneGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const ArcaneGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, cardTransform }) => {
   const rings = useMemo(() => assignRings(elementRegistry), [elementRegistry]);
 
   const ringLayouts = useMemo(() => rings.map((items, r) => ringPositions(items, RING_RADII[r])), [rings]);
@@ -119,7 +119,7 @@ const ArcaneGrid = ({ statsMap, onElementClick, elementRegistry }) => {
           const stats = statsMap[el.id] || { level: 0, isBoiling: false, details: [], online: false };
           return (
             <div key={el.id} style={{ position: 'absolute', left: x - CARD_W / 2, top: y - CARD_H / 2 }}>
-              <ArcaneCard element={el} stats={stats} onClick={onElementClick} />
+              <ArcaneCard element={el} stats={stats} onClick={onElementClick} cardDisplay={cardTransform?.(el)} />
             </div>
           );
         })}
@@ -136,7 +136,7 @@ const ArcaneGrid = ({ statsMap, onElementClick, elementRegistry }) => {
           const stats = statsMap[el.id] || { level: 0, isBoiling: false, details: [], online: false };
           return (
             <div key={el.id} style={{ position: 'absolute', left: x - CARD_W / 2, top: y - CARD_H / 2, pointerEvents: 'auto' }}>
-              <ArcaneCard element={el} stats={stats} onClick={onElementClick} />
+              <ArcaneCard element={el} stats={stats} onClick={onElementClick} cardDisplay={cardTransform?.(el)} />
             </div>
           );
         })}
@@ -146,7 +146,7 @@ const ArcaneGrid = ({ statsMap, onElementClick, elementRegistry }) => {
           const stats = statsMap[el.id] || { level: 0, isBoiling: false, details: [], online: false };
           return (
             <div key={el.id} style={{ position: 'absolute', left: x - CARD_W / 2, top: y - CARD_H / 2 }}>
-              <ArcaneCard element={el} stats={stats} onClick={onElementClick} />
+              <ArcaneCard element={el} stats={stats} onClick={onElementClick} cardDisplay={cardTransform?.(el)} />
             </div>
           );
         })}
@@ -164,7 +164,7 @@ const ArcaneGrid = ({ statsMap, onElementClick, elementRegistry }) => {
 
         <div style={{ position: 'absolute', bottom: 8, right: 12, fontSize: 9, fontFamily: 'monospace',
           color: 'rgba(255,255,255,0.1)', letterSpacing: '0.3em', pointerEvents: 'none' }}>
-          ◆ SUMMONING CIRCLE — ACTIVE ◆
+          {gridTitle || '◆ SUMMONING CIRCLE — ACTIVE ◆'}
         </div>
       </div>
     </div>

@@ -93,7 +93,7 @@ const WindBarb = ({ x, y, speed, color }) => {
   );
 };
 
-const WeatherGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const WeatherGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, cardTransform }) => {
   const layout = useMemo(() => buildLayout(elementRegistry), [elementRegistry]);
   const isobars = useMemo(() => buildIsobars(layout), [layout]);
 
@@ -154,7 +154,7 @@ const WeatherGrid = ({ statsMap, onElementClick, elementRegistry }) => {
               style={{ position: 'absolute', left: x, top: y }}
               whileHover={prefersReducedMotion ? {} : { scale: 1.12, zIndex: 80 }}
             >
-              <WeatherCard element={el} stats={stats} onClick={onElementClick} />
+              <WeatherCard element={el} stats={stats} onClick={onElementClick} cardDisplay={cardTransform?.(el)} />
             </motion.div>
           );
         })}
@@ -171,7 +171,7 @@ const WeatherGrid = ({ statsMap, onElementClick, elementRegistry }) => {
 
         <div style={{ position: 'absolute', bottom: 8, right: 12, fontSize: 9, fontFamily: 'monospace',
           color: 'rgba(255,255,255,0.1)', letterSpacing: '0.3em', pointerEvents: 'none' }}>
-          ◆ SYNOPTIC ANALYSIS — SURFACE ◆
+          {gridTitle || '◆ SYNOPTIC ANALYSIS — SURFACE ◆'}
         </div>
       </div>
     </div>

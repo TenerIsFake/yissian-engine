@@ -4,7 +4,7 @@ import { activeCATRef } from '../../themes/ThemeContext.jsx';
 import BandCard from './BandCard.jsx';
 import { BAND_OVERLAY } from './bandConfig.js';
 
-const CARD_W = 72, CARD_H = 80;
+const CARD_W = 82, CARD_H = 88;
 const CW = 1100, CH = 700;
 
 const prefersReducedMotion = typeof window !== 'undefined'
@@ -50,7 +50,7 @@ function buildLayout(registry) {
   });
 }
 
-const BandGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const BandGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, gridSubtitle, cardTransform }) => {
   const layout = useMemo(() => buildLayout(elementRegistry), [elementRegistry]);
 
   // XLR cable connections from FOH/Sound Engineer → performers
@@ -86,11 +86,11 @@ const BandGrid = ({ statsMap, onElementClick, elementRegistry }) => {
 
         <div style={{ position: 'absolute', bottom: CH * 0.04, left: '50%', transform: 'translateX(-50%)',
           fontSize: 8, fontFamily: 'monospace', color: 'rgba(255,255,255,0.18)', letterSpacing: '0.4em', pointerEvents: 'none' }}>
-          ◆ AUDIENCE ◆
+          {gridTitle || '◆ AUDIENCE ◆'}
         </div>
         <div style={{ position: 'absolute', top: CH * 0.03, left: '50%', transform: 'translateX(-50%)',
           fontSize: 8, fontFamily: 'monospace', color: 'rgba(255,255,255,0.18)', letterSpacing: '0.4em', pointerEvents: 'none' }}>
-          ◆ BACKLINE ◆
+          {gridSubtitle || '◆ BACKLINE ◆'}
         </div>
 
         {/* XLR cables SVG */}
@@ -128,7 +128,7 @@ const BandGrid = ({ statsMap, onElementClick, elementRegistry }) => {
               transition={(!prefersReducedMotion && (role === 'Lead Vocalist' || role === 'Drums'))
                 ? { duration: 3.5, repeat: Infinity, ease: 'easeInOut' } : {}}
             >
-              <BandCard element={el} stats={stats} onClick={onElementClick} />
+              <BandCard element={el} stats={stats} onClick={onElementClick} cardDisplay={cardTransform?.(el)} />
             </motion.div>
           );
         })}

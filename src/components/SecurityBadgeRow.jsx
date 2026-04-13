@@ -4,14 +4,51 @@ import { apiFetch } from '../utils/apiClient.js';
 
 const MONO = 'monospace';
 
+// Every listening address from docker-compose.yml + system services.
+// IPv6 [::] equivalents are matched by stripping to port-only fallback.
 const EXPECTED_PORTS = new Set([
-  '0.0.0.0:22', '0.0.0.0:80', '0.0.0.0:443',
-  '127.0.0.1:3000', '127.0.0.1:5000', '127.0.0.1:5055',
-  '127.0.0.1:6767', '127.0.0.1:7878', '127.0.0.1:8080',
-  '127.0.0.1:8085', '127.0.0.1:8181', '127.0.0.1:8686',
-  '127.0.0.1:8840', '127.0.0.1:8888', '127.0.0.1:8989',
-  '127.0.0.1:9696', '127.0.0.1:3001',
+  // Docker services — LAN-bound (0.0.0.0)
+  '0.0.0.0:2222',   // triggercmd
+  '0.0.0.0:3000',   // homepage (nginx → 8080)
+  '0.0.0.0:3006',   // braintree-nginx
+  '0.0.0.0:3101',   // homeplanner vite dev server
+  '0.0.0.0:4030',   // docker-monitor
+  '0.0.0.0:5050',   // notifiarr (alt config)
+  '0.0.0.0:5454',   // notifiarr
+  '0.0.0.0:5804',   // lan-presence
+  '0.0.0.0:6767',   // bazarr
+  '0.0.0.0:7878',   // radarr
+  '0.0.0.0:8080',   // qbittorrent (via gluetun)
+  '0.0.0.0:8085',   // sabnzbd
+  '0.0.0.0:8384',   // syncthing UI
+  '0.0.0.0:8686',   // lidarr
+  '0.0.0.0:8888',   // tautulli-bridge
+  '0.0.0.0:8989',   // sonarr
+  '0.0.0.0:9696',   // prowlarr
+  '0.0.0.0:22000',  // syncthing sync
+  // Docker services — loopback only (127.0.0.1)
+  '127.0.0.1:3005',  // braintree-web
+  '127.0.0.1:5001',  // musicbrainz-applet
+  '127.0.0.1:5800',  // hue-bridge
+  '127.0.0.1:5802',  // restic-sidecar
+  '127.0.0.1:5803',  // claude-terminal-sidecar
+  '127.0.0.1:5984',  // couchdb
+  '127.0.0.1:7681',  // claude-terminal-ttyd
+  '127.0.0.1:7682',  // claude-terminal-ttyd-admin
+  '127.0.0.1:7683',  // claude-terminal-clsh
+  '127.0.0.1:8282',  // glances
+  '127.0.0.1:8283',  // audiobookshelf (alt)
+  '127.0.0.1:13378', // kavita
+  // System — DNS resolvers (WSL2)
+  '10.255.255.254:53',
+  '127.0.0.53%lo:53',
+  '127.0.0.54:53',
 ]);
+
+// Also match IPv6 [::]:PORT equivalents of any 0.0.0.0:PORT entry
+const EXPECTED_V4_PORTS = new Set(
+  [...EXPECTED_PORTS].filter(p => p.startsWith('0.0.0.0:')).map(p => p.split(':')[1])
+);
 
 // SYN-P1-12: icon added alongside dot — WCAG 1.4.1 (color not sole conveyor of status)
 const STATUS_ICON = (color) => {
@@ -38,7 +75,11 @@ const PortAuditBadge = ({ data, isLoading, isError }) => {
   const err = isError || error;
   const unexpected = (ports || []).filter(p => {
     const addr = p.split(' ')[0];
-    return !EXPECTED_PORTS.has(addr);
+    if (EXPECTED_PORTS.has(addr)) return false;
+    // Match [::]:PORT against known 0.0.0.0:PORT entries
+    const v6Match = addr.match(/^\[::]:(\d+)$/);
+    if (v6Match && EXPECTED_V4_PORTS.has(v6Match[1])) return false;
+    return true;
   });
   const hasAlert = unexpected.length > 0;
   const color    = err ? 'rgba(156,163,175,0.8)' : hasAlert ? '#f87171' : '#4ade80';
@@ -52,14 +93,45 @@ const PortAuditBadge = ({ data, isLoading, isError }) => {
   return <StatusBadge label={label} color={color} bgColor={bgColor} borderC={borderC} />;
 };
 
-const UfwStatusBadge = ({ data, isLoading, isError }) => {
-  const { status = null, error = null } = data || {};
+const LanFirewallBadge = ({ data, isLoading, isError }) => {
+  const { win_firewall = null, portproxy_count = 0, error = null } = data || {};
   const err = isError || error;
-  const isActive  = status === 'active';
-  const color     = err ? 'rgba(156,163,175,0.8)' : isActive ? '#4ade80' : '#f87171';
-  const bgColor   = err ? 'rgba(255,255,255,0.03)' : isActive ? 'rgba(74,222,128,0.06)' : 'rgba(239,68,68,0.08)';
-  const borderC   = err ? 'rgba(255,255,255,0.08)' : isActive ? 'rgba(74,222,128,0.2)' : 'rgba(239,68,68,0.3)';
-  const label     = isLoading ? 'UFW: ...' : err ? 'UFW: ERR' : isActive ? 'UFW: ACTIVE' : 'UFW: INACTIVE';
+  const isActive  = win_firewall === 'all_active';
+  const isPartial = win_firewall === 'partial';
+  const color     = err ? 'rgba(156,163,175,0.8)' : isActive ? '#4ade80' : isPartial ? '#fde047' : '#f87171';
+  const bgColor   = err ? 'rgba(255,255,255,0.03)' : isActive ? 'rgba(74,222,128,0.06)' : isPartial ? 'rgba(253,224,71,0.06)' : 'rgba(239,68,68,0.08)';
+  const borderC   = err ? 'rgba(255,255,255,0.08)' : isActive ? 'rgba(74,222,128,0.2)' : isPartial ? 'rgba(253,224,71,0.25)' : 'rgba(239,68,68,0.3)';
+  const label     = isLoading ? 'LAN: ...' : err ? 'LAN: ERR'
+    : isActive ? `LAN: WIN_FW ✓ ${portproxy_count} RULES`
+    : isPartial ? 'LAN: WIN_FW PARTIAL'
+    : 'LAN: WIN_FW OFF';
+  return <StatusBadge label={label} color={color} bgColor={bgColor} borderC={borderC} />;
+};
+
+const WanBadge = ({ data, isLoading, isError }) => {
+  const { wan_exposure = null, error = null } = data || {};
+  const err = isError || error;
+  const isTunnelOnly = wan_exposure === 'tunnel_only';
+  const color   = err ? 'rgba(156,163,175,0.8)' : isTunnelOnly ? '#4ade80' : '#fde047';
+  const bgColor = err ? 'rgba(255,255,255,0.03)' : isTunnelOnly ? 'rgba(74,222,128,0.06)' : 'rgba(253,224,71,0.06)';
+  const borderC = err ? 'rgba(255,255,255,0.08)' : isTunnelOnly ? 'rgba(74,222,128,0.2)' : 'rgba(253,224,71,0.25)';
+  const label   = isLoading ? 'WAN: ...' : err ? 'WAN: ERR'
+    : isTunnelOnly ? 'WAN: TUNNEL ONLY' : `WAN: ${wan_exposure?.toUpperCase() ?? 'UNKNOWN'}`;
+  return <StatusBadge label={label} color={color} bgColor={bgColor} borderC={borderC} />;
+};
+
+const Srv2Badge = ({ data, isLoading, isError }) => {
+  const { srv2_up = 0, srv2_down = 0, error = null } = data || {};
+  const err = isError || error;
+  const total = srv2_up + srv2_down;
+  const allUp = srv2_down === 0 && total > 0;
+  const color   = err ? 'rgba(156,163,175,0.8)' : allUp ? '#4ade80' : srv2_down > 0 ? '#f87171' : 'rgba(156,163,175,0.8)';
+  const bgColor = err ? 'rgba(255,255,255,0.03)' : allUp ? 'rgba(74,222,128,0.06)' : srv2_down > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.03)';
+  const borderC = err ? 'rgba(255,255,255,0.08)' : allUp ? 'rgba(74,222,128,0.2)' : srv2_down > 0 ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)';
+  const label   = isLoading ? 'SRV-2: ...' : err ? 'SRV-2: ERR'
+    : total === 0 ? 'SRV-2: NO DATA'
+    : allUp ? `SRV-2: ${srv2_up}/${total} UP`
+    : `SRV-2: ${srv2_down}/${total} DOWN`;
   return <StatusBadge label={label} color={color} bgColor={bgColor} borderC={borderC} />;
 };
 
@@ -85,93 +157,20 @@ const KeyAuditBadge = ({ data, isLoading, isError }) => {
   return <StatusBadge label={label} color={color} bgColor={bgColor} borderC={borderC} />;
 };
 
-const BazarrHealthCard = ({ data, isLoading, isError }) => {
-  const [tab, setTab] = React.useState('coverage');
-  const { movies, episodes, providers = [] } = data || {};
-
-  const coverage = (obj) => {
-    if (!obj || obj.total === 0) return null;
-    return Math.round((obj.with_subs / obj.total) * 100);
-  };
-  const movPct = coverage(movies);
-  const epPct  = coverage(episodes);
-  const dotColor = () => {
-    if (isError || !data) return '#6b7280';
-    if (movPct === null && epPct === null) return '#6b7280';
-    const min = Math.min(movPct ?? 100, epPct ?? 100);
-    if (min >= 98) return '#4ade80';
-    if (min >= 90) return '#fde047';
-    return '#f87171';
-  };
-
-  const errProviders = providers.filter(p => p.last_error);
-  const sortedProviders = [...errProviders, ...providers.filter(p => !p.last_error)];
-
-  return (
-    <div style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(12px)',
-      border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12,
-      padding: '12px 14px', minWidth: 220, maxWidth: 320 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor(), flexShrink: 0 }} />
-        <span style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.4)' }}>
-          ◆ BAZARR_HEALTH
-        </span>
-        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-          {['coverage', 'providers'].map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{
-              fontFamily: MONO, fontSize: 7, letterSpacing: '0.1em', cursor: 'pointer',
-              padding: '2px 6px', borderRadius: 3, border: '1px solid',
-              borderColor: tab === t ? 'rgba(6,182,212,0.5)' : 'rgba(255,255,255,0.1)',
-              background: tab === t ? 'rgba(6,182,212,0.1)' : 'transparent',
-              color: tab === t ? '#38bdf8' : 'rgba(255,255,255,0.3)',
-            }}>{t.toUpperCase()}</button>
-          ))}
-        </div>
-      </div>
-
-      {isLoading && <div style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(255,255,255,0.3)' }}>LOADING...</div>}
-      {isError && <div style={{ fontFamily: MONO, fontSize: 8, color: '#f87171' }}>BAZARR_OFFLINE</div>}
-
-      {!isLoading && !isError && tab === 'coverage' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[['MOVIES', movies, movPct], ['EPISODES', episodes, epPct]].map(([label, obj, pct]) => (
-            <div key={label}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.1em' }}>{label}</span>
-                <span style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(255,255,255,0.6)' }}>
-                  {obj ? `${(obj.with_subs || 0).toLocaleString()} / ${(obj.total || 0).toLocaleString()}` : '—'}{pct !== null ? ` (${pct}%)` : ''}
-                </span>
-              </div>
-              <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 2, height: 3 }}>
-                <div style={{ width: `${pct ?? 0}%`, height: '100%', borderRadius: 2,
-                  background: pct >= 98 ? 'rgba(74,222,128,0.6)' : pct >= 90 ? 'rgba(253,224,71,0.6)' : 'rgba(248,113,113,0.6)' }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!isLoading && !isError && tab === 'providers' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 140, overflowY: 'auto' }}>
-          {sortedProviders.length === 0 && (
-            <span style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(255,255,255,0.2)' }}>NO_PROVIDERS</span>
-          )}
-          {sortedProviders.map((p, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-                background: p.last_error ? '#f87171' : p.enabled ? '#4ade80' : '#6b7280' }} />
-              <span style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(255,255,255,0.7)', flex: 1,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-              {p.last_error && (
-                <span style={{ fontFamily: MONO, fontSize: 7, color: '#f87171',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>{p.last_error}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+// NH-64: Image Freshness Badge
+const ImageFreshnessBadge = ({ data, isLoading, isError }) => {
+  const images = Array.isArray(data) ? data : [];
+  const err = isError;
+  const staleCount = images.filter(i => i.stale).length;
+  const hasStale = staleCount > 0;
+  const color   = err ? 'rgba(156,163,175,0.8)' : hasStale ? '#fbbf24' : '#4ade80';
+  const bgColor = err ? 'rgba(255,255,255,0.03)' : hasStale ? 'rgba(251,191,36,0.06)' : 'rgba(74,222,128,0.06)';
+  const borderC = err ? 'rgba(255,255,255,0.08)' : hasStale ? 'rgba(251,191,36,0.25)' : 'rgba(74,222,128,0.2)';
+  const label   = isLoading ? 'IMAGES: ...' : err ? 'IMAGES: ERR'
+    : images.length === 0 ? 'IMAGES: ...'
+    : hasStale ? `IMAGES: ${staleCount} UPDATES`
+    : 'IMAGES: CURRENT';
+  return <StatusBadge label={label} color={color} bgColor={bgColor} borderC={borderC} />;
 };
 
 export const SecurityBadgeRow = ({ addLog }) => {
@@ -181,17 +180,23 @@ export const SecurityBadgeRow = ({ addLog }) => {
     refetchInterval: 120_000,
     onSuccess: (data) => {
       const ports = Array.isArray(data?.ports) ? data.ports : [];
-      const unexpected = ports.filter(p => !EXPECTED_PORTS.has(p.split(' ')[0]));
+      const unexpected = ports.filter(p => {
+        const addr = p.split(' ')[0];
+        if (EXPECTED_PORTS.has(addr)) return false;
+        const v6Match = addr.match(/^\[::]:(\d+)$/);
+        if (v6Match && EXPECTED_V4_PORTS.has(v6Match[1])) return false;
+        return true;
+      });
       if (addLog) addLog('PORT-AUDIT', `${ports.length} ports (${unexpected.length} unknown)`, unexpected.length > 0 ? 'warn' : 'info');
     },
     onError: (err) => { if (addLog) addLog('PORT-AUDIT', `Failed: ${err.message}`, 'warn'); },
   });
 
-  const ufwQuery = useQuery({
-    queryKey: ['ufw-status'],
-    queryFn: () => apiFetch('/api/ufw-status'),
+  const firewallQuery = useQuery({
+    queryKey: ['firewall-status'],
+    queryFn: () => apiFetch('/api/firewall-status'),
     refetchInterval: 300_000,
-    onError: (err) => { if (addLog) addLog('UFW', `Failed: ${err.message}`, 'warn'); },
+    onError: (err) => { if (addLog) addLog('FIREWALL', `Failed: ${err.message}`, 'warn'); },
   });
 
   const keyQuery = useQuery({
@@ -201,21 +206,20 @@ export const SecurityBadgeRow = ({ addLog }) => {
     onError: (err) => { if (addLog) addLog('KEY-AUDIT', `Failed: ${err.message}`, 'warn'); },
   });
 
-  const bazarrQuery = useQuery({
-    queryKey: ['bazarr-health'],
-    queryFn: () => apiFetch('/api/bazarr/health'),
-    refetchInterval: 300_000,
-    onError: (err) => { if (addLog) addLog('BAZARR', `Health fetch failed: ${err.message}`, 'warn'); },
+  const freshnessQuery = useQuery({
+    queryKey: ['image-freshness'],
+    queryFn: () => apiFetch('/api/flask/image-freshness'),
+    refetchInterval: 3_600_000,
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <PortAuditBadge data={portQuery.data} isLoading={portQuery.isLoading} isError={portQuery.isError} />
-        <UfwStatusBadge data={ufwQuery.data} isLoading={ufwQuery.isLoading} isError={ufwQuery.isError} />
-        <KeyAuditBadge  data={keyQuery.data}  isLoading={keyQuery.isLoading}  isError={keyQuery.isError}  />
-      </div>
-      <BazarrHealthCard data={bazarrQuery.data} isLoading={bazarrQuery.isLoading} isError={bazarrQuery.isError} />
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      <WanBadge data={firewallQuery.data} isLoading={firewallQuery.isLoading} isError={firewallQuery.isError} />
+      <LanFirewallBadge data={firewallQuery.data} isLoading={firewallQuery.isLoading} isError={firewallQuery.isError} />
+      <Srv2Badge data={firewallQuery.data} isLoading={firewallQuery.isLoading} isError={firewallQuery.isError} />
+      <PortAuditBadge data={portQuery.data} isLoading={portQuery.isLoading} isError={portQuery.isError} />
+      <KeyAuditBadge  data={keyQuery.data}  isLoading={keyQuery.isLoading}  isError={keyQuery.isError}  />
+      <ImageFreshnessBadge data={freshnessQuery.data} isLoading={freshnessQuery.isLoading} isError={freshnessQuery.isError} />
     </div>
   );
 };

@@ -253,7 +253,7 @@ const ReadingTab = () => {
 };
 
 // ── Main widget ───────────────────────────────────────────────────────────
-export const MediaPipelineWidget = ({ qbTorrents, sabnzbdQueue, addLog }) => {
+export const MediaPipelineWidget = ({ qbTorrents, sabnzbdQueue, addLog, widgetLabels }) => {
   const [activeTab, setActiveTab] = useState('pipeline');
   const [pipelineCount, setPipelineCount] = useState(
     parseInt(localStorage.getItem('pipeline-item-count') || '5', 10)
@@ -275,7 +275,7 @@ export const MediaPipelineWidget = ({ qbTorrents, sabnzbdQueue, addLog }) => {
 
   const { data: pipelineData, refetch: refetchPipeline } = useQuery({
     queryKey: ['pipeline'],
-    queryFn: () => apiFetch('/api/pipeline'),
+    queryFn: () => apiFetch('/api/flask/pipeline'),
     refetchInterval: 60_000,
     onError: (e) => addLog?.('PIPELINE', `Fetch failed: ${e.message}`, 'warn'),
   });
@@ -371,7 +371,7 @@ export const MediaPipelineWidget = ({ qbTorrents, sabnzbdQueue, addLog }) => {
       )}
 
       {/* Plex tab */}
-      {activeTab === 'plex' && <PlexEcosystemRow addLog={addLog} />}
+      {activeTab === 'plex' && <PlexEcosystemRow addLog={addLog} widgetLabels={widgetLabels} />}
 
       {/* Reading tab (DF-10) */}
       {activeTab === 'reading' && <ReadingTab />}

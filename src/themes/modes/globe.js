@@ -1,0 +1,147 @@
+import { createModeTiers } from '../paletteHelpers.js';
+
+// ── GLOBE — Geographic / cartographic / expedition ───────────
+// T1: Parchment   — warm cream-grey, old map feel
+// T2: Atlas       — ocean blue + land green + desert gold
+// T3: Trade Winds — gentle cloud drift, faint compass shimmer
+// T4: Monsoon     — weather fronts moving, ship lights, aurora at edges
+// T5: Expedition  — storms, satellite paths, volcanic glow, rare aurora
+
+const t2 = {
+  bgBase: '#070B10',
+  accent: '#2196F3',
+  dotGridColor: 'rgba(33,150,243,0.04)',
+  cat: {
+    ALKALI:     { bg: 'rgba(33,150,243,0.09)',    border: '#2196F3', text: '#64B5F6', glow: 'rgba(33,150,243,0.45)' },
+    ALKALINE:   { bg: 'rgba(38,166,154,0.08)',     border: '#26A69A', text: '#4DB6AC', glow: 'rgba(38,166,154,0.40)' },
+    TRANSITION: { bg: 'rgba(255,193,7,0.08)',      border: '#FFC107', text: '#FFD54F', glow: 'rgba(255,193,7,0.35)' },
+    HALOGEN:    { bg: 'rgba(239,83,80,0.08)',      border: '#EF5350', text: '#EF9A9A', glow: 'rgba(239,83,80,0.35)' },
+    NOBLE:      { bg: 'rgba(66,165,245,0.09)',     border: '#42A5F5', text: '#90CAF9', glow: 'rgba(66,165,245,0.45)' },
+    LANTHANIDE: { bg: 'rgba(102,187,106,0.08)',    border: '#66BB6A', text: '#A5D6A7', glow: 'rgba(102,187,106,0.40)' },
+    POST:       { bg: 'rgba(141,110,99,0.07)',     border: '#8D6E63', text: '#BCAAA4', glow: 'rgba(141,110,99,0.25)' },
+    METALLOID:  { bg: 'rgba(77,182,172,0.07)',     border: '#4DB6AC', text: '#80CBC4', glow: 'rgba(77,182,172,0.30)' },
+    NONMETAL:   { bg: 'rgba(174,213,129,0.07)',    border: '#AED581', text: '#C5E1A5', glow: 'rgba(174,213,129,0.20)' },
+    ACTINIDE:   { bg: 'rgba(255,112,67,0.08)',     border: '#FF7043', text: '#FF8A65', glow: 'rgba(255,112,67,0.35)' },
+    PNICTOGEN:  { bg: 'rgba(41,182,246,0.09)',     border: '#29B6F6', text: '#4FC3F7', glow: 'rgba(41,182,246,0.40)' },
+    CHALCOGEN:  { bg: 'rgba(255,167,38,0.09)',     border: '#FFA726', text: '#FFB74D', glow: 'rgba(255,167,38,0.40)' },
+  },
+};
+
+const sceneConfig = {
+  particles: [
+    {
+      id: 'cloud',
+      behavior: 'drift',
+      render: 'glow',
+      count: [0, 0, 450, 700, 950],
+      speed: [0.3, 0.8],
+      angle: [260, 280],
+      size: [3, 7],
+      glowRadius: 10,
+      color: '#BBDEFB',
+      opacity: [0.4, 0.8],
+      lifetime: [300, 600],
+    },
+    {
+      id: 'compassGlimmer',
+      behavior: 'twinkle',
+      render: 'dot',
+      count: [0, 0, 500, 700, 900],
+      size: [0.4, 1.2],
+      color: '#FFD54F',
+      opacity: [0.4, 0.8],
+      twinkleSpeed: [0.006, 0.018],
+      lifetime: Infinity,
+    },
+    {
+      id: 'weatherFront',
+      behavior: 'wave',
+      render: 'trail',
+      spawnRate: [0, 0, 0, 0.08, 0.18],
+      speed: [1.5, 3],
+      angle: [250, 290],
+      size: [1, 2],
+      trailLength: 20,
+      color: '#90CAF9',
+      opacity: 0.75,
+      lifetime: [60, 150],
+    },
+    {
+      id: 'shipLight',
+      behavior: 'drift',
+      render: 'dot',
+      spawnRate: [0, 0, 0, 0.06, 0.15],
+      speed: [0.2, 0.6],
+      angle: [170, 190],
+      size: [0.8, 1.5],
+      color: '#FFECB3',
+      opacity: 0.9,
+      lifetime: [200, 400],
+    },
+    {
+      id: 'auroraGlow',
+      behavior: 'flash',
+      render: 'glow',
+      spawnRate: [0, 0, 0, 0.015, 0.06],
+      size: [15, 30],
+      glowRadius: 50,
+      color: '#69F0AE',
+      opacity: 1.0,
+      lifetime: [30, 60],
+      spawnY: [0, 0.15],
+      cascade: true,
+    },
+    {
+      id: 'tradeWind',
+      behavior: 'drift',
+      render: 'line',
+      spawnRate: [0, 0, 0, 0.06, 0.15],
+      speed: [1, 2.5],
+      angle: [170, 190],
+      size: [1, 2],
+      color: '#B0BEC5',
+      opacity: [0.4, 0.8],
+      lifetime: [100, 250],
+    },
+    {
+      id: 'seaSpray',
+      behavior: 'rise',
+      render: 'dot',
+      spawnRate: [0, 0, 0.04, 0.1, 0.2],
+      speed: [0.2, 0.6],
+      size: [0.5, 1.5],
+      color: '#80DEEA',
+      opacity: [0.4, 0.8],
+      lifetime: [60, 140],
+    },
+    {
+      id: 'meridianPulse',
+      behavior: 'wave',
+      render: 'glow',
+      spawnRate: [0, 0, 0, 0.03, 0.08],
+      speed: [0.5, 1.5],
+      size: [2, 5],
+      glowRadius: 8,
+      color: '#FFF176',
+      opacity: [0.4, 0.8],
+      lifetime: [80, 180],
+      waveAmplitude: 20,
+      waveFreq: 0.02,
+    },
+  ],
+};
+
+export default createModeTiers('GLOBE', {
+  tierNames: ['Parchment', 'Atlas', 'Trade Winds', 'Monsoon', 'Expedition'],
+  tierTooltips: [
+    'Warm cream-grey — old map feel',
+    'Ocean blue, land green, desert gold atlas palette',
+    'Gentle cloud drift with faint compass shimmer',
+    'Weather fronts, ship lights, aurora at edges',
+    'Storms, satellite paths, volcanic glow, rare aurora',
+  ],
+  t1: { bgBase: '#0C0A08', accent: '#B8B0A0', dotGridColor: 'rgba(184,176,160,0.03)' },
+  t2,
+  sceneConfig,
+  flavorHue: 210,
+});

@@ -52,7 +52,7 @@ const RULED_LINES = Array.from({ length: 20 }, (_, i) => (
   <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i * 40, height: 1, background: 'rgba(255,220,150,0.6)' }} />
 ));
 
-const NoirGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const NoirGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, cardTransform }) => {
   const positions = useMemo(() => scatterPositions(elementRegistry), [elementRegistry]);
 
   // Group by bureau for red-string connections
@@ -118,7 +118,7 @@ const NoirGrid = ({ statsMap, onElementClick, elementRegistry }) => {
                 scale: { type: 'spring', stiffness: 260, damping: 20 },
               }}
             >
-              <NoirCard element={el} stats={stats} onClick={onElementClick} />
+              <NoirCard element={el} stats={stats} onClick={onElementClick} cardDisplay={cardTransform?.(el)} />
             </motion.div>
           );
         })}
@@ -126,7 +126,7 @@ const NoirGrid = ({ statsMap, onElementClick, elementRegistry }) => {
         {/* Watermark */}
         <div style={{ position: 'absolute', bottom: 8, right: 12, fontSize: 9, fontFamily: 'monospace',
           color: 'rgba(255,200,100,0.12)', letterSpacing: '0.3em', pointerEvents: 'none' }}>
-          ◆ CASE ROOM — RESTRICTED ACCESS ◆
+          {gridTitle || '◆ CASE ROOM — RESTRICTED ACCESS ◆'}
         </div>
       </div>
     </div>

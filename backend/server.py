@@ -13,6 +13,10 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+from models import init_db, ChatSession, ChatMessage, CustomPersona
+from tools import TOOL_LIST, TOOL_FUNCTIONS
+from context import get_homelab_context
+
 app = Flask(__name__)
 
 JOURNAL_PATH = '/tmp/lab-journal.jsonl'
@@ -48,30 +52,28 @@ BAZARR_API_KEY = os.environ.get("BAZARR_API_KEY", "")
 
 client = genai.Client(api_key=api_key)
 
+# Initialize databases on startup
+init_db()
+
 # --- GEMINI CHAT LOGIC ---
 
-def analyze_media(title: str) -> str:
-    """Use this function to check the library for a movie or show and retrieve its metadata and technical details."""
-    print(f"*** SYSTEM LOG: Analyzing library for {title} ***")
-    return f"Library Data for {title}: Available in 4K resolution, Dolby Vision HDR, DTS:X audio track. Watch count: 2."
-
 PERSONAS = {
-    "media_assistant": "You are the Jenkins Media Assistant. Help users navigate the server library. Use the analyze_media tool. Be brief and helpful.",
-    "mixologist": "You are a virtual bartender. When a user asks about a movie in the library, suggest a thematic cocktail pairing and explain why it fits.",
-    "film_snob": "You are a pretentious film critic. Use analyze_media to check their library. Begrudgingly admit high-end tech specs are 'acceptable', but complain about the cinematography.",
-    "it_admin": "You are the grumpy sysadmin. Focus on technical specs. Warn the user not to transcode 4K and use terrible IT dad jokes.",
-    "trivia_master": "You are a game-show host. Give a piece of behind-the-scenes trivia about the requested title and quiz the user.",
-    "kids_mode": "You are Captain Jenkins, a pirate guide. Focus on family-friendly movies. Suggest snacks. Speak lightly in pirate slang.",
-    "binge_watcher": "You are a hyperactive couch potato who hasn't slept. Always try to upsell the user into watching back-to-back movies.",
-    "nostradamus": "You are Nostradamus. Use the analyze_media tool to peer into the library. Speak in cryptic, prophetic, and slightly ominous quatrains.",
-    "sun_tzu": "You are Sun Tzu. Use the analyze_media tool. Treat watching the movie as a strategic military campaign.",
-    "socrates": "You are Socrates. Use the analyze_media tool to check the library. Use the Socratic method. Ask profound, probing questions about why they desire to watch this film.",
-    "plato": "You are Plato. Use the analyze_media tool. Refer frequently to the Allegory of the Cave.",
-    "nietzsche": "You are Friedrich Nietzsche. Use the analyze_media tool. Speak of the Übermensch, the will to power, and the abyss.",
-    "galileo": "You are Galileo Galilei. Use the analyze_media tool. Marvel at the technology of the server like celestial bodies.",
-    "mark_twain": "You are Mark Twain. Use the analyze_media tool. Speak with a folksy, sharp, Midwestern wit.",
-    "steinbeck": "You are John Steinbeck. Use the analyze_media tool. Describe the movie's plot through the lens of the working class and human struggle.",
-    "hemingway": "You are Ernest Hemingway. Use the analyze_media tool. Write only in short, punchy sentences. Omit needless words."
+    "media_assistant": "You are the Jenkins Media Assistant for a homelab media server. You have tools to search movies (Radarr), TV shows (Sonarr), check Plex sessions, library stats, Overseerr requests, watch history (Tautulli), and download queues. Use these tools to answer questions about the library. Be brief and helpful.",
+    "mixologist": "You are a virtual bartender at the Jenkins homelab. When a user asks about a movie or show, use the search tools to find it, then suggest a thematic cocktail pairing and explain why it fits the mood.",
+    "film_snob": "You are a pretentious film critic with access to the Jenkins media library. Use the search tools to check their collection. Begrudgingly admit high-end quality specs are 'acceptable', but critique the selections.",
+    "it_admin": "You are the grumpy sysadmin of the Jenkins homelab. Use tools to check Plex sessions, download queues, and library stats. Warn about transcoding 4K. Make terrible IT dad jokes.",
+    "trivia_master": "You are a game-show host with access to the Jenkins media library. Use tools to find titles, then give behind-the-scenes trivia and quiz the user about their own collection.",
+    "kids_mode": "You are Captain Jenkins, a pirate guide to the media library. Use tools to find family-friendly content. Suggest snacks. Speak lightly in pirate slang. Keep it wholesome.",
+    "binge_watcher": "You are a hyperactive couch potato who hasn't slept in 72 hours. Use the search tools and watch history to suggest back-to-back viewing marathons.",
+    "nostradamus": "You are Nostradamus with mystical access to the Jenkins media library. Use tools to peer into the collection. Speak in cryptic, prophetic quatrains about what you find.",
+    "sun_tzu": "You are Sun Tzu with strategic access to the Jenkins media library. Use tools to assess the collection. Treat movie selection as military strategy.",
+    "socrates": "You are Socrates with access to the Jenkins media library. Use tools to examine titles. Apply the Socratic method — ask profound questions about why they wish to watch this.",
+    "plato": "You are Plato with access to the Jenkins media library. Use tools to explore the collection. Refer to the Allegory of the Cave when discussing what people watch.",
+    "nietzsche": "You are Friedrich Nietzsche with access to the Jenkins media library. Use tools to examine the abyss of content. Speak of the will to power in media consumption.",
+    "galileo": "You are Galileo Galilei marveling at the Jenkins media server. Use tools to explore this technological wonder. Treat each discovery like observing celestial bodies.",
+    "mark_twain": "You are Mark Twain with folksy access to the Jenkins media library. Use tools to check on titles. Speak with sharp Midwestern wit about what you find.",
+    "steinbeck": "You are John Steinbeck examining the Jenkins media library. Use tools to search the collection. Describe everything through the lens of the working class and human struggle.",
+    "hemingway": "You are Ernest Hemingway with access to the Jenkins media library. Use tools to check titles. Short sentences. No wasted words. The server is good. The movies are true.",
 }
 
 @app.route('/health')
@@ -79,41 +81,307 @@ def health():
     return jsonify({"status": "ok"}), 200
 
 
+# ── Custom Persona CRUD ──────────────────────────
+
+@app.route('/api/chat/personas', methods=['GET'])
+def list_personas():
+    """List all custom personas."""
+    personas = list(CustomPersona.select().order_by(CustomPersona.name))
+    return jsonify([p.to_dict() for p in personas])
+
+
+@app.route('/api/chat/personas', methods=['POST'])
+def create_persona():
+    """Create a new custom persona."""
+    data = request.json or {}
+    name = data.get('name', '').strip()
+    instruction = data.get('instruction', '').strip()
+    if not name or not instruction:
+        return jsonify({"error": "Name and instruction are required"}), 400
+    key = 'custom_' + re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')
+    if CustomPersona.select().where(CustomPersona.key == key).exists():
+        return jsonify({"error": "A persona with that name already exists"}), 409
+    persona = CustomPersona.create(
+        key=key, name=name, instruction=instruction,
+        greeting=data.get('greeting', f'{name} is ready.'),
+        glyph=data.get('glyph', '🤖'),
+        hue=data.get('hue', 200),
+    )
+    return jsonify(persona.to_dict()), 201
+
+
+@app.route('/api/chat/personas/<int:persona_id>', methods=['PUT'])
+def update_persona(persona_id):
+    """Update a custom persona."""
+    try:
+        persona = CustomPersona.get_by_id(persona_id)
+    except CustomPersona.DoesNotExist:
+        return jsonify({"error": "Persona not found"}), 404
+    data = request.json or {}
+    if 'name' in data:
+        persona.name = data['name'].strip()
+    if 'instruction' in data:
+        persona.instruction = data['instruction'].strip()
+    if 'greeting' in data:
+        persona.greeting = data['greeting']
+    if 'glyph' in data:
+        persona.glyph = data['glyph']
+    if 'hue' in data:
+        persona.hue = data['hue']
+    persona.save()
+    return jsonify(persona.to_dict())
+
+
+@app.route('/api/chat/personas/<int:persona_id>', methods=['DELETE'])
+def delete_persona(persona_id):
+    """Delete a custom persona."""
+    try:
+        persona = CustomPersona.get_by_id(persona_id)
+    except CustomPersona.DoesNotExist:
+        return jsonify({"error": "Persona not found"}), 404
+    persona.delete_instance()
+    return jsonify({"ok": True})
+
+
+# ── Session CRUD ──────────────────────────────
+
+@app.route('/api/chat/sessions', methods=['GET'])
+def list_sessions():
+    """List all chat sessions, newest first."""
+    sessions = (ChatSession
+                .select()
+                .order_by(ChatSession.updated_at.desc())
+                .limit(50))
+    return jsonify([s.to_dict() for s in sessions])
+
+
+@app.route('/api/chat/sessions', methods=['POST'])
+def create_session():
+    """Create a new chat session."""
+    data = request.json or {}
+    persona = data.get('persona', 'media_assistant')
+    session = ChatSession.create(persona=persona, title=data.get('title', 'New Chat'))
+    return jsonify(session.to_dict()), 201
+
+
+@app.route('/api/chat/sessions/<int:session_id>', methods=['GET'])
+def get_session(session_id):
+    """Get a session and all its messages."""
+    try:
+        session = ChatSession.get_by_id(session_id)
+    except ChatSession.DoesNotExist:
+        return jsonify({"error": "Session not found"}), 404
+    messages = list(session.messages.order_by(ChatMessage.created_at))
+    return jsonify({
+        **session.to_dict(),
+        'messages': [m.to_dict() for m in messages],
+    })
+
+
+@app.route('/api/chat/sessions/<int:session_id>', methods=['DELETE'])
+def delete_session(session_id):
+    """Delete a session and all its messages."""
+    try:
+        session = ChatSession.get_by_id(session_id)
+    except ChatSession.DoesNotExist:
+        return jsonify({"error": "Session not found"}), 404
+    session.delete_instance(recursive=True)
+    return jsonify({"ok": True})
+
+
+# ── Chat endpoint (SSE streaming + tool calls + persistence) ──
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     data = request.json
     user_message = data.get('message', '')[:4096]
-    frontend_history = data.get('history', [])[:20]
     persona_key = data.get('persona', 'media_assistant')
-    
-    current_instruction = PERSONAS.get(persona_key, PERSONAS["media_assistant"])
+    session_id = data.get('session_id')
+    stream = data.get('stream', True)
 
     if not user_message:
         return jsonify({"error": "No message provided"}), 400
 
+    # Resolve persona instruction — check built-ins first, then custom DB personas
+    base_instruction = PERSONAS.get(persona_key)
+    if not base_instruction and persona_key.startswith('custom_'):
+        try:
+            cp = CustomPersona.get(CustomPersona.key == persona_key)
+            base_instruction = cp.instruction
+        except CustomPersona.DoesNotExist:
+            pass
+    if not base_instruction:
+        base_instruction = PERSONAS["media_assistant"]
+
+    # Inject live homelab context into the system instruction
+    homelab_context = get_homelab_context()
+    current_instruction = (
+        f"{base_instruction}\n\n"
+        f"--- CURRENT HOMELAB STATE (auto-refreshed) ---\n"
+        f"{homelab_context}\n"
+        f"--- END STATE ---\n"
+        f"Use this state to answer questions directly when possible. "
+        f"Only use tool calls when the user asks for something not covered above "
+        f"(e.g., searching for a specific title, requesting media, or checking details). "
+        f"You can also: view Docker container logs (view_container_logs), restart services "
+        f"(restart_service — ALWAYS ask the user for confirmation first), check VPN status "
+        f"(get_vpn_status), read speedtest results (run_speedtest), check backup health "
+        f"(get_backup_status), and get system metrics (get_system_metrics)."
+    )
+
+    # Load or create session
+    if session_id:
+        try:
+            session = ChatSession.get_by_id(session_id)
+        except ChatSession.DoesNotExist:
+            return jsonify({"error": "Session not found"}), 404
+    else:
+        # Auto-create session from first message
+        title = user_message[:60] + ('...' if len(user_message) > 60 else '')
+        session = ChatSession.create(persona=persona_key, title=title)
+        session_id = session.id
+
+    # Save user message to DB
+    ChatMessage.create(session=session, role='user', text=user_message)
+
+    # Build history from DB (last 20 messages for context window)
+    db_messages = list(
+        ChatMessage
+        .select()
+        .where(ChatMessage.session == session)
+        .order_by(ChatMessage.created_at.desc())
+        .limit(20)
+    )
+    db_messages.reverse()  # chronological order
+
     gemini_history = []
-    for msg in frontend_history:
-        role = 'model' if msg['role'] == 'bot' else 'user'
+    # Exclude the last message (it's the current user_message we'll send)
+    for msg in db_messages[:-1]:
+        role = 'model' if msg.role == 'bot' else 'user'
         gemini_history.append(
-            types.Content(role=role, parts=[types.Part(text=msg['text'])])
+            types.Content(role=role, parts=[types.Part(text=msg.text)])
         )
 
+    if stream:
+        return _stream_response(user_message, current_instruction, gemini_history, session, session_id)
+    else:
+        return _sync_response(user_message, current_instruction, gemini_history, session, session_id)
+
+
+def _handle_tool_calls(response, chat_session):
+    """Process any tool calls in the response, send results back, return final text."""
+    max_rounds = 5
+    for _ in range(max_rounds):
+        # Check if the response contains function calls
+        if not response.candidates or not response.candidates[0].content.parts:
+            break
+        fn_calls = [p for p in response.candidates[0].content.parts if p.function_call]
+        if not fn_calls:
+            break
+
+        # Execute each function call
+        tool_results = []
+        for fc in fn_calls:
+            fn_name = fc.function_call.name
+            fn_args = dict(fc.function_call.args) if fc.function_call.args else {}
+            print(f"[TOOL] Calling {fn_name}({fn_args})", flush=True)
+            fn = TOOL_FUNCTIONS.get(fn_name)
+            if fn:
+                result = fn(**fn_args)
+            else:
+                result = f"Unknown function: {fn_name}"
+            tool_results.append(types.Part(
+                function_response=types.FunctionResponse(name=fn_name, response={"result": result})
+            ))
+
+        # Send tool results back to Gemini
+        response = chat_session.send_message(tool_results)
+
+    # Extract final text
+    text_parts = [p.text for p in (response.candidates[0].content.parts if response.candidates else []) if hasattr(p, 'text') and p.text]
+    return " ".join(text_parts) if text_parts else "I processed the request but have no text response."
+
+
+def _sync_response(user_message, instruction, history, session, session_id):
+    """Non-streaming fallback."""
     try:
         chat_session = client.chats.create(
-            model='gemini-2.0-flash-001',
+            model='gemini-2.5-flash',
             config=types.GenerateContentConfig(
-                system_instruction=current_instruction,
-                tools=[analyze_media],
+                system_instruction=instruction,
+                tools=TOOL_LIST,
             ),
-            history=gemini_history,
+            history=history,
         )
-
         response = chat_session.send_message(user_message)
-        return jsonify({"response": response.text})
-
+        text = _handle_tool_calls(response, chat_session)
+        ChatMessage.create(session=session, role='bot', text=text)
+        session.updated_at = datetime.utcnow()
+        session.save()
+        return jsonify({"response": text, "session_id": session_id})
     except Exception as e:
-        print(f"Error calling Gemini API: {e}")
+        app.logger.error("Gemini API error: %s", e, exc_info=True)
         return jsonify({"error": "Failed to connect to Gemini"}), 500
+
+
+def _stream_response(user_message, instruction, history, session, session_id):
+    """SSE streaming response with tool call support."""
+    def generate():
+        try:
+            chat_session = client.chats.create(
+                model='gemini-2.5-flash',
+                config=types.GenerateContentConfig(
+                    system_instruction=instruction,
+                    tools=TOOL_LIST,
+                ),
+                history=history,
+            )
+
+            # First response — may contain tool calls or streaming text
+            full_text = ""
+            response = chat_session.send_message(user_message)
+
+            # Check for tool calls in the initial response
+            if response.candidates and response.candidates[0].content.parts:
+                fn_calls = [p for p in response.candidates[0].content.parts if p.function_call]
+                if fn_calls:
+                    # Handle tool calls synchronously, then stream the final text
+                    yield f"data: {json.dumps({'type': 'tool', 'name': fn_calls[0].function_call.name})}\n\n"
+                    final_text = _handle_tool_calls(response, chat_session)
+                    # Stream the tool response in chunks for typewriter effect
+                    for i in range(0, len(final_text), 12):
+                        chunk = final_text[i:i+12]
+                        full_text += chunk
+                        yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
+                else:
+                    # No tool calls — extract text from non-streaming response
+                    text_parts = [p.text for p in response.candidates[0].content.parts if hasattr(p, 'text') and p.text]
+                    final_text = " ".join(text_parts)
+                    for i in range(0, len(final_text), 12):
+                        chunk = final_text[i:i+12]
+                        full_text += chunk
+                        yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
+
+            # Save bot response
+            if full_text:
+                ChatMessage.create(session=session, role='bot', text=full_text)
+                session.updated_at = datetime.utcnow()
+                session.save()
+
+            yield f"data: {json.dumps({'type': 'done', 'session_id': session_id})}\n\n"
+
+        except Exception as e:
+            app.logger.error("Streaming error: %s", e, exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+        },
+    )
 
 
 # --- STOCK WIDGET LOGIC ---
@@ -126,8 +394,8 @@ def get_stocks():
         tickers = yf.Tickers('AAPL MSFT GOOGL TSLA')
         data = []
         for symbol, ticker in tickers.tickers.items():
-            current = ticker.fast_info['last_price']
-            prev = ticker.fast_info['previous_close']
+            current = getattr(ticker.fast_info, 'last_price', 0) or 0
+            prev = getattr(ticker.fast_info, 'previous_close', current) or current
             change = ((current - prev) / prev) * 100
             data.append({"ticker": symbol, "price": round(current, 2), "change": round(change, 2)})
         return data
@@ -135,17 +403,112 @@ def get_stocks():
         with concurrent.futures.ThreadPoolExecutor() as ex:
             future = ex.submit(_fetch)
             data = future.result(timeout=15)
+        for d in data:
+            d['source'] = 'live'
         return jsonify(data)
     except concurrent.futures.TimeoutError:
         return jsonify({'error': 'timeout'}), 504
     except Exception as e:
-        print(f"YFinance error (falling back to mock data): {e}")
+        app.logger.error("YFinance error (falling back to mock data): %s", e, exc_info=True)
         return jsonify([
-            {"ticker": "AAPL", "price": 173.50, "change": 1.25},
-            {"ticker": "MSFT", "price": 418.22, "change": -0.50},
-            {"ticker": "GOOGL", "price": 142.65, "change": 0.85},
-            {"ticker": "TSLA", "price": 175.34, "change": -2.10}
+            {"ticker": "AAPL", "price": 173.50, "change": 1.25, "source": "fallback"},
+            {"ticker": "MSFT", "price": 418.22, "change": -0.50, "source": "fallback"},
+            {"ticker": "GOOGL", "price": 142.65, "change": 0.85, "source": "fallback"},
+            {"ticker": "TSLA", "price": 175.34, "change": -2.10, "source": "fallback"}
         ])
+
+_stock_history_cache = {}
+_STOCK_HISTORY_TTL = 900  # 15 minutes
+
+@app.route('/api/stocks/history', methods=['GET'])
+def get_stock_history():
+    import concurrent.futures
+    import yfinance as yf
+
+    symbols_raw = request.args.get('symbols', 'AAPL,MSFT,GOOGL,TSLA')
+    period = request.args.get('period', '5d')
+    interval = request.args.get('interval', '1h')
+
+    # Validate inputs
+    allowed_periods = {'1d', '5d', '1mo', '3mo'}
+    allowed_intervals = {'5m', '15m', '1h', '1d'}
+    if period not in allowed_periods:
+        return jsonify({'error': f'Invalid period. Allowed: {sorted(allowed_periods)}'}), 400
+    if interval not in allowed_intervals:
+        return jsonify({'error': f'Invalid interval. Allowed: {sorted(allowed_intervals)}'}), 400
+
+    symbols = [s.strip().upper() for s in symbols_raw.split(',') if s.strip()][:8]
+    if not symbols:
+        return jsonify({'error': 'No symbols provided'}), 400
+
+    cache_key = f"{','.join(symbols)}|{period}|{interval}"
+    cached = _stock_history_cache.get(cache_key)
+    if cached and (time.time() - cached['ts']) < _STOCK_HISTORY_TTL:
+        return jsonify(cached['data'])
+
+    def _fetch():
+        result = {}
+        for sym in symbols:
+            try:
+                ticker = yf.Ticker(sym)
+                hist = ticker.history(period=period, interval=interval)
+                current = getattr(ticker.fast_info, 'last_price', 0) or 0
+                prev = getattr(ticker.fast_info, 'previous_close', current) or current
+                change = ((current - prev) / prev * 100) if prev else 0
+                points = []
+                for ts, row in hist.iterrows():
+                    points.append({
+                        't': ts.isoformat(),
+                        'c': round(float(row['Close']), 2)
+                    })
+                # Fetch investment ratios (graceful — indices/commodities won't have all)
+                ratios = {}
+                try:
+                    info = ticker.info or {}
+                    pe = info.get('trailingPE') or info.get('forwardPE')
+                    if pe is not None:
+                        ratios['pe'] = round(float(pe), 2)
+                    dy = info.get('dividendYield')
+                    if dy is not None:
+                        ratios['divYield'] = round(float(dy) * 100, 2)
+                    w52h = info.get('fiftyTwoWeekHigh')
+                    w52l = info.get('fiftyTwoWeekLow')
+                    if w52h is not None:
+                        ratios['w52High'] = round(float(w52h), 2)
+                    if w52l is not None:
+                        ratios['w52Low'] = round(float(w52l), 2)
+                    mc = info.get('marketCap')
+                    if mc is not None:
+                        ratios['marketCap'] = int(mc)
+                    beta = info.get('beta')
+                    if beta is not None:
+                        ratios['beta'] = round(float(beta), 2)
+                except Exception:
+                    pass  # ratios stay empty for commodities/indices that fail
+
+                result[sym] = {
+                    'current': round(float(current), 2),
+                    'change': round(float(change), 2),
+                    'history': points,
+                    'ratios': ratios
+                }
+            except Exception as e:
+                app.logger.warning("yfinance history error for %s: %s", sym, e)
+                result[sym] = {'current': 0, 'change': 0, 'history': [], 'error': str(e)}
+        return result
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as ex:
+            future = ex.submit(_fetch)
+            data = future.result(timeout=30)
+        _stock_history_cache[cache_key] = {'data': data, 'ts': time.time()}
+        return jsonify(data)
+    except concurrent.futures.TimeoutError:
+        return jsonify({'error': 'timeout'}), 504
+    except Exception as e:
+        app.logger.error("Stock history error: %s", e, exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
 
 def _is_stale(generated_at_str, threshold_minutes=15):
     """Return True if generated_at is absent or older than threshold_minutes."""
@@ -162,7 +525,7 @@ def _is_stale(generated_at_str, threshold_minutes=15):
 @app.route('/api/port-audit')
 def port_audit():
     try:
-        with open('/tmp/port-audit.json') as f:
+        with open('/tmp/homepage-audit/port-audit.json') as f:
             data = json.load(f)
         ports = data.get('ports', [])
         if not isinstance(ports, list):
@@ -174,16 +537,230 @@ def port_audit():
         return jsonify({'error': 'unavailable'}), 503
 
 
-@app.route('/api/ufw-status')
-def ufw_status():
+@app.route('/api/firewall-status')
+def firewall_status():
     try:
-        with open('/tmp/ufw-status.json') as f:
+        with open('/tmp/homepage-audit/firewall-status.json') as f:
             data = json.load(f)
-        return jsonify({'status': data.get('status'), 'ts': data.get('ts'),
-                        'stale': _is_stale(data.get('generated_at'))})
+        return jsonify({
+            'win_firewall': data.get('win_firewall'),
+            'portproxy_count': data.get('portproxy_count'),
+            'wan_exposure': data.get('wan_exposure'),
+            'srv2_services': data.get('srv2_services', []),
+            'srv2_up': data.get('srv2_up', 0),
+            'srv2_down': data.get('srv2_down', 0),
+            'ts': data.get('ts'),
+            'stale': _is_stale(data.get('generated_at')),
+        })
     except Exception as e:
-        app.logger.error('ufw_status error: %s', e)
+        app.logger.error('firewall_status error: %s', e)
         return jsonify({'error': 'unavailable'}), 503
+
+
+@app.route('/api/docker/container/<name>')
+def docker_container_status(name):
+    """Return status for a specific Docker container via docker-monitor."""
+    try:
+        r = http_requests.get("http://docker-monitor:5803/api/docker/containers", timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        containers = data if isinstance(data, list) else data.get("containers", [])
+        c = next((x for x in containers if x["name"] == name), None)
+        if not c:
+            return jsonify({"error": f"container '{name}' not found", "running": False}), 404
+        return jsonify({
+            "name": c["name"],
+            "running": c.get("status") == "running",
+            "health": c.get("health", "none"),
+            "restart_count": c.get("restart_count", 0),
+            "started_at": c.get("started_at"),
+            "image": c.get("image"),
+        })
+    except Exception as e:
+        app.logger.error("Docker status error for %s: %s", name, e, exc_info=True)
+        return jsonify({"error": str(e), "running": False}), 503
+
+
+@app.route('/api/docker/health')
+def docker_health():
+    """Return health status for ALL Docker containers via docker-monitor."""
+    try:
+        r = http_requests.get("http://docker-monitor:5803/api/docker/containers", timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        containers = data if isinstance(data, list) else data.get("containers", [])
+        result = []
+        for c in containers:
+            running = c.get("status") == "running"
+            result.append({
+                "name": c.get("name", "unknown"),
+                "running": running,
+                "health": c.get("health", "none"),
+                "restart_count": c.get("restart_count", 0),
+                "started_at": c.get("started_at"),
+                "image": c.get("image"),
+            })
+        result.sort(key=lambda x: (x["running"], x["name"]))
+        healthy = sum(1 for c in result if c["running"])
+        return jsonify({
+            "containers": result,
+            "total": len(result),
+            "healthy": healthy,
+            "unhealthy": len(result) - healthy,
+        })
+    except Exception as e:
+        app.logger.error("Docker health error: %s", e, exc_info=True)
+        return jsonify({"error": str(e), "containers": [], "total": 0, "healthy": 0, "unhealthy": 0}), 503
+
+
+# ── Lottery trends ───────────────────────────────────────────────────────────
+_lottery_cache = {}
+_LOTTERY_TTL = 21600  # 6 hours
+
+_LOTTERY_DATASETS = {
+    'powerball':    'd6yy-54nr',
+    'megamillions': '5xaw-6ayf',
+}
+
+_DRAW_SCHEDULE = {
+    'powerball':    [0, 2, 5],  # Mon, Wed, Sat
+    'megamillions': [1, 4],     # Tue, Fri
+}
+
+
+def _next_draw_date(game):
+    """Return the next draw date for a game as ISO string."""
+    from datetime import datetime, timedelta
+    now = datetime.now()
+    days = _DRAW_SCHEDULE.get(game, [])
+    for offset in range(1, 8):
+        candidate = now + timedelta(days=offset)
+        if candidate.weekday() in days:
+            return candidate.strftime('%A, %B %d')
+    # If today is a draw day and it's before 11 PM, today counts
+    if now.weekday() in days and now.hour < 23:
+        return now.strftime('%A, %B %d (TONIGHT)')
+    return 'Unknown'
+
+
+def _parse_drawings(raw, game):
+    """Parse Socrata API results into [{main: [int], special: int, date: str}]."""
+    drawings = []
+    for row in raw:
+        try:
+            nums_str = row.get('winning_numbers', '')
+            nums = [int(n) for n in nums_str.split() if n.strip()]
+            date = row.get('draw_date', '')[:10]
+            if game == 'megamillions':
+                main = nums[:5]
+                special = int(row.get('mega_ball', nums[-1] if len(nums) > 5 else 0))
+            else:
+                # Powerball: last number in winning_numbers is the PB
+                if len(nums) >= 6:
+                    main = nums[:5]
+                    special = nums[5]
+                else:
+                    main = nums[:5]
+                    special = int(row.get('multiplier', 0))
+            if len(main) == 5 and special > 0:
+                drawings.append({'main': sorted(main), 'special': special, 'date': date})
+        except (ValueError, IndexError):
+            continue
+    return drawings
+
+
+def _analyze_window(drawings, window):
+    """Compute trend analysis for a window of drawings."""
+    from collections import Counter
+    subset = drawings[:window]
+    if not subset:
+        return None
+    all_mains = [n for d in subset for n in d['main']]
+    all_specials = [d['special'] for d in subset]
+    main_freq = Counter(all_mains)
+    special_freq = Counter(all_specials)
+    avg_sum = round(sum(sum(d['main']) for d in subset) / len(subset), 1)
+    avg_number = round(sum(all_mains) / len(all_mains), 1)
+    odd_count = sum(1 for n in all_mains if n % 2 == 1)
+    even_count = len(all_mains) - odd_count
+    mid = 35
+    high_count = sum(1 for n in all_mains if n > mid)
+    low_count = len(all_mains) - high_count
+    return {
+        'window': window,
+        'count': len(subset),
+        'hot_numbers': [n for n, _ in main_freq.most_common(5)],
+        'cold_numbers': [n for n, _ in main_freq.most_common()[:-6:-1]],
+        'hot_special': [n for n, _ in special_freq.most_common(3)],
+        'avg_sum': avg_sum,
+        'avg_number': avg_number,
+        'odd_even': f"{odd_count}:{even_count}",
+        'high_low': f"{high_count}:{low_count}",
+        'top_10': [[n, c] for n, c in main_freq.most_common(10)],
+        'date_range': f"{subset[-1]['date']} — {subset[0]['date']}" if len(subset) > 1 else subset[0]['date'],
+    }
+
+
+@app.route('/api/lottery/trends', methods=['GET'])
+def lottery_trends():
+    """Fetch and analyze recent lottery drawings for Powerball or Mega Millions."""
+    game = request.args.get('game', 'powerball').lower()
+    if game not in _LOTTERY_DATASETS:
+        return jsonify({'error': f'Unknown game. Use: {list(_LOTTERY_DATASETS.keys())}'}), 400
+
+    cache_key = game
+    cached = _lottery_cache.get(cache_key)
+    if cached and (time.time() - cached['ts']) < _LOTTERY_TTL:
+        return jsonify(cached['data'])
+
+    dataset = _LOTTERY_DATASETS[game]
+    url = f"https://data.ny.gov/resource/{dataset}.json?$order=draw_date%20DESC&$limit=50"
+    try:
+        r = http_requests.get(url, timeout=15)
+        r.raise_for_status()
+        raw = r.json()
+    except Exception as e:
+        app.logger.warning("Lottery API error for %s: %s", game, e)
+        # Return cached data if available, even if stale
+        if cached:
+            return jsonify(cached['data'])
+        return jsonify({'error': 'Could not fetch lottery data', 'detail': str(e)}), 503
+
+    drawings = _parse_drawings(raw, game)
+    if not drawings:
+        return jsonify({'error': 'No valid drawings found in API response'}), 502
+
+    result = {
+        'game': game,
+        'next_draw': _next_draw_date(game),
+        'trends': {
+            '10': _analyze_window(drawings, 10),
+            '25': _analyze_window(drawings, 25),
+            '50': _analyze_window(drawings, 50),
+        },
+        'latest': drawings[0] if drawings else None,
+        'fetched_at': time.strftime('%Y-%m-%dT%H:%M:%S'),
+    }
+    _lottery_cache[cache_key] = {'data': result, 'ts': time.time()}
+    return jsonify(result)
+
+
+@app.route('/api/braintree/status')
+def braintree_status():
+    """Probe Brain-Tree-OS web UI on SRV-2 (primary) and SRV-1 (fallback)."""
+    srv2 = False
+    srv1 = False
+    try:
+        r = http_requests.get("http://10.0.0.155:3006", timeout=3)
+        srv2 = r.status_code in (200, 401, 302)  # 401/302 = auth wall = service is up
+    except Exception:
+        pass
+    try:
+        r = http_requests.get("http://host.docker.internal:3006", timeout=3)
+        srv1 = r.status_code in (200, 401, 302)
+    except Exception:
+        pass
+    return jsonify({"srv2": srv2, "srv1": srv1})
 
 
 @app.route('/api/key-audit')
@@ -232,22 +809,23 @@ def journal_write():
 
 @app.route('/api/vpn-status')
 def vpn_status():
-    # Signal 1: Is Gluetun's API reachable from within Docker's internal network?
-    # Uses the same unauthenticated endpoint the browser previously called, but now
-    # the call stays server-side — never touches an external service, never hits nginx
-    # access logs from the browser. API responding with 200 means the container is up
-    # and the VPN tunnel is initialised; we do NOT gate on public_ip content so that
-    # a failed IP-lookup doesn't falsely report the tunnel as down.
+    # Signal 1: Query Gluetun's public IP API for tunnel status + exit info.
     api_up = False
+    exit_ip = None
+    country = None
+    city = None
     try:
         r = http_requests.get('http://gluetun:8000/v1/publicip/ip', timeout=3)
         api_up = (r.status_code == 200)
+        if api_up:
+            d = r.json()
+            exit_ip = d.get('public_ip')
+            country = d.get('country')
+            city = d.get('city')
     except Exception:
         pass
 
     # Signal 2: Forwarded port file written by Gluetun on every connect/reconnect.
-    # Gluetun rewrites this file each time port-forwarding is (re-)established, so its
-    # presence (and a valid port number) confirms active port forwarding.
     forwarded_port = None
     try:
         with open('/tmp/gluetun/forwarded_port') as f:
@@ -257,7 +835,13 @@ def vpn_status():
     except Exception:
         pass
 
-    return jsonify({'online': api_up, 'forwarded_port': forwarded_port})
+    return jsonify({
+        'online': api_up,
+        'forwarded_port': forwarded_port,
+        'exit_ip': exit_ip,
+        'country': country,
+        'city': city,
+    })
 
 
 # ── DF-05: DNS Leak Test ──────────────────────────────────────────────────────
@@ -296,11 +880,21 @@ def _run_leak_test() -> dict:
                 'cached': False,
             }
 
-        # Step 2: Verify the exit IP belongs to ProtonVPN (AS212473).
+        # Step 2: Verify the exit IP belongs to ProtonVPN or a known partner datacenter.
+        # ProtonVPN routes through multiple ASNs depending on the exit server:
+        #   AS212473 — ProtonVPN AG (direct)
+        #   AS212238 — Datacamp Limited (partner DC, common for CH/EU exits)
+        #   AS9009   — M247 Ltd (partner DC, common for US/UK exits)
+        #   AS209103 — Proton AG (current direct allocation, seen 2026-04)
+        # We also accept any org string containing "Proton" as a belt-and-braces
+        # fallback so a future ASN rotation doesn't trip a false LEAK alert.
+        PROTONVPN_ASNS = {'AS212473', 'AS212238', 'AS9009', 'AS209103'}
         ipinfo = http_requests.get(f'https://ipinfo.io/{outgoing_ip}/json', timeout=8).json()
         outgoing_asn = ipinfo.get('org', '')   # e.g. "AS212473 ProtonVPN AG"
 
-        passed = 'AS212473' in outgoing_asn
+        asn_match = any(asn in outgoing_asn for asn in PROTONVPN_ASNS)
+        name_match = 'proton' in outgoing_asn.lower()
+        passed = asn_match or name_match
 
         return {
             'passed': passed,
@@ -395,13 +989,16 @@ def tautulli_sessions():
             })
         return jsonify({"sessions": sessions, "stream_count": data.get("stream_count", 0)})
     except Exception as e:
+        app.logger.error("Plex sessions error: %s", e, exc_info=True)
         return jsonify({"error": str(e), "sessions": [], "stream_count": 0}), 500
 
+
+_TAUTULLI_THUMB_RE = re.compile(r'^/library/metadata/\d+/(thumb|art)/\d+$')
 
 @app.route('/api/tautulli/thumb')
 def tautulli_thumb():
     img = request.args.get("img", "")
-    if not img or not img.startswith("/library/"):
+    if not img or not _TAUTULLI_THUMB_RE.match(img):
         return "", 400
     try:
         resp = http_requests.get(
@@ -413,6 +1010,7 @@ def tautulli_thumb():
         resp.raise_for_status()
         return Response(resp.content, content_type=resp.headers.get("Content-Type", "image/jpeg"))
     except Exception as e:
+        app.logger.error("Tautulli thumb proxy error: %s", e, exc_info=True)
         return jsonify({"error": str(e)}), 502
 
 
@@ -524,7 +1122,7 @@ def ntfy_messages():
 
 
 # NH-38 — Uptime Kuma Incident Timeline
-MONITOR_ALLOWLIST_PATH = os.path.expanduser("~/.config/homepage-audit/uptime-kuma-monitors.json")
+MONITOR_ALLOWLIST_PATH = "/tmp/homepage-audit/uptime-kuma-monitors.json"
 UPTIME_KUMA_SLUG = os.environ.get("UPTIME_KUMA_SLUG", "default")
 _uk_cache = {"data": None, "ts": 0}
 
@@ -546,34 +1144,48 @@ def uptime_history():
 
     allowlist = load_allowlist()
     try:
-        r = http_requests.get(
+        # Fetch monitor names from status page config (publicGroupList)
+        cfg_r = http_requests.get(
+            f"{UPTIME_KUMA_BASE}/api/status-page/{UPTIME_KUMA_SLUG}",
+            timeout=10
+        )
+        if cfg_r.status_code == 404:
+            return jsonify({"error": "Status page not configured in Uptime Kuma"}), 404
+        cfg_r.raise_for_status()
+        cfg = cfg_r.json()
+
+        # Build ID→name map from publicGroupList
+        monitor_names = {}
+        for group in cfg.get("publicGroupList", []):
+            for m in group.get("monitorList", []):
+                monitor_names[str(m["id"])] = m.get("name", f"Monitor {m['id']}")
+
+        # Fetch heartbeat data
+        hb_r = http_requests.get(
             f"{UPTIME_KUMA_BASE}/api/status-page/heartbeat/{UPTIME_KUMA_SLUG}",
             timeout=10
         )
-        if r.status_code == 404:
-            return jsonify({"error": "Status page not configured in Uptime Kuma"}), 404
-        r.raise_for_status()
-        payload = r.json()
+        hb_r.raise_for_status()
+        hb_payload = hb_r.json()
     except Exception as e:
         return jsonify({"error": str(e)}), 503
 
-    monitor_list = payload.get("monitorList", {})
-    heartbeat_list = payload.get("heartbeatList", {})
+    heartbeat_list = hb_payload.get("heartbeatList", {})
+    uptime_list = hb_payload.get("uptimeList", {})
 
     result = []
-    for mid, monitor in monitor_list.items():
-        name = monitor.get("name", "")
+    for mid, name in monitor_names.items():
         if allowlist and name not in allowlist:
             continue
-        beats = heartbeat_list.get(str(mid), [])
+        beats = heartbeat_list.get(mid, [])
         beats_sorted = sorted(beats, key=lambda b: b.get("time", ""))
         timeline = [{"status": b.get("status"), "time": b.get("time"), "ping": b.get("ping")} for b in beats_sorted]
-        up_count = sum(1 for b in beats if b.get("status") == 1)
-        pct = round(up_count / len(beats) * 100, 1) if beats else None
+        # Use uptimeList for accurate percentage (key format: "{id}_24" for 24h)
+        uptime_24 = uptime_list.get(f"{mid}_24")
+        pct = round(uptime_24 * 100, 1) if uptime_24 is not None else None
         result.append({
             "id": mid,
             "name": name,
-            "current_status": monitor.get("active"),
             "timeline": timeline,
             "uptime_7d_pct": pct,
             "has_incident": any(b.get("status") != 1 for b in beats),
@@ -873,13 +1485,13 @@ except ImportError:
     _CRONITER_AVAILABLE = False
 
 _CRON_JOBS = [
-    {"id": "backup",       "name": "backup.sh",      "cron": "0 3 * * *",   "log": "/home/tener/backup.log"},
-    {"id": "port_audit",   "name": "port_audit.sh",  "cron": "*/5 * * * *", "mtime_path": "/home/tener/.config/homepage-audit/port-audit.json"},
-    {"id": "ufw_status",   "name": "ufw_status.sh",  "cron": "*/5 * * * *", "mtime_path": "/home/tener/.config/homepage-audit/ufw-status.json"},
+    {"id": "backup",       "name": "backup.sh",      "cron": "0 3 * * *",   "log": "/tmp/backup.log"},
+    {"id": "port_audit",   "name": "port_audit.sh",  "cron": "*/5 * * * *", "mtime_path": "/tmp/homepage-audit/port-audit.json"},
+    {"id": "firewall_status", "name": "firewall_status.sh", "cron": "*/5 * * * *", "mtime_path": "/tmp/homepage-audit/firewall-status.json"},
     {"id": "watchtower",   "name": "Watchtower",      "cron": "0 8 * * *",   "docker": "watchtower"},
     {"id": "port_updater", "name": "port-updater",   "cron": "*/5 * * * *", "docker": "port-updater"},
-    {"id": "restic_check", "name": "restic check",   "cron": "0 4 * * 0",   "log": "/home/tener/.config/homepage-audit/restic-check.log"},
-    {"id": "speedtest",    "name": "speedtest",      "cron": "0 */6 * * *", "log": "/home/tener/.config/homepage-audit/speedtest.log"},
+    {"id": "restic_check", "name": "restic check",   "cron": "0 4 * * 0",   "log": "/tmp/homepage-audit/restic-check.log"},
+    {"id": "speedtest",    "name": "speedtest",      "cron": "0 */6 * * *", "log": "/tmp/homepage-audit/speedtest.log"},
 ]
 
 def _next_run(cron_expr):
@@ -917,7 +1529,7 @@ def cron_status():
             item.update(_last_run_from_mtime(job["mtime_path"]))
         elif "docker" in job:
             try:
-                r = http_requests.get("http://docker-monitor:5803/api/docker/containers", timeout=3)
+                r = http_requests.get("http://docker-monitor:5803/api/docker/containers", timeout=10)
                 containers = r.json().get("containers", [])
                 c = next((x for x in containers if x["name"] == job["docker"]), None)
                 item["last_run"] = c.get("started_at") if c else None
@@ -1231,6 +1843,202 @@ def reading_search():
             errors.append(f'hardcover: {e}')
 
     return jsonify({'items': results, 'errors': errors})
+
+
+# ── NH-65 — Backup Panorama ──────────────────────────────────────
+SYNCTHING_URL = os.environ.get('SYNCTHING_URL', 'http://syncthing:8384')
+SYNCTHING_API_KEY = os.environ.get('SYNCTHING_API_KEY', '')
+SYNCTHING_FOLDER_ID = os.environ.get('SYNCTHING_FOLDER_ID', 'handoff')
+RESTIC_SIDECAR_URL_INT = 'http://restic-sidecar:5802'
+
+@app.route('/api/backup/panorama')
+def backup_panorama():
+    result = {}
+    # Restic SRV-1
+    try:
+        r = http_requests.get(f'{RESTIC_SIDECAR_URL_INT}/api/backup/status', timeout=8)
+        d = r.json()
+        result['restic_srv1'] = {
+            'last_backup': d.get('last_backup_time'),
+            'snapshot_count': d.get('snapshot_count'),
+            'size_gb': d.get('repo_size_gb'),
+            'status': 'ok' if d.get('last_backup_time') else 'unknown',
+        }
+    except Exception:
+        result['restic_srv1'] = {'status': 'unreachable'}
+
+    # Syncthing
+    if SYNCTHING_API_KEY:
+        try:
+            headers = {'X-API-Key': SYNCTHING_API_KEY}
+            conn = http_requests.get(f'{SYNCTHING_URL}/rest/system/connections', headers=headers, timeout=5).json()
+            db = http_requests.get(f'{SYNCTHING_URL}/rest/db/status', params={'folder': SYNCTHING_FOLDER_ID}, headers=headers, timeout=5).json()
+            connected = sum(1 for c in conn.get('connections', {}).values() if c.get('connected'))
+            result['syncthing'] = {
+                'connected_peers': connected,
+                'global_files': db.get('globalFiles', 0),
+                'need_files': db.get('needFiles', 0),
+                'state': db.get('state', 'unknown'),
+                'status': 'ok' if db.get('state') == 'idle' and db.get('needFiles', 0) == 0 else 'syncing',
+            }
+        except Exception:
+            result['syncthing'] = {'status': 'unreachable'}
+    else:
+        result['syncthing'] = {'status': 'no_api_key'}
+
+    # Docker volume backups
+    try:
+        import glob
+        backup_dir = '/home/tener/.config/volume-backups'
+        files = sorted(glob.glob(f'{backup_dir}/*.tar.gz'), key=os.path.getmtime, reverse=True)
+        total_mb = sum(os.path.getsize(f) for f in files) / 1e6
+        latest = os.path.getmtime(files[0]) if files else 0
+        result['docker_volumes'] = {
+            'file_count': len(files),
+            'total_mb': round(total_mb, 1),
+            'last_backup': datetime.fromtimestamp(latest).isoformat() if latest else None,
+            'status': 'ok' if files else 'no_backups',
+        }
+    except Exception:
+        result['docker_volumes'] = {'status': 'no_directory'}
+
+    result['backup_cron'] = {'schedule': 'daily 3am', 'script': '/home/tener/backup.sh'}
+    return jsonify(result)
+
+
+# ── NH-68 — Disk Trend Data ──────────────────────────────────────
+@app.route('/api/disk-trend')
+def disk_trend():
+    path = '/tmp/homepage-audit/disk-trend.json'
+    if not os.path.exists(path):
+        return jsonify([])
+    try:
+        with open(path) as f:
+            return jsonify(json.load(f))
+    except Exception:
+        return jsonify([])
+
+
+# ── NH-64 — Image Freshness ─────────────────────────────────────
+@app.route('/api/image-freshness')
+def image_freshness():
+    path = '/tmp/homepage-audit/image-freshness.json'
+    if not os.path.exists(path):
+        return jsonify([])
+    try:
+        with open(path) as f:
+            return jsonify(json.load(f))
+    except Exception:
+        return jsonify([])
+
+
+# ── NH-73 — Kometa Status ───────────────────────────────────────
+@app.route('/api/kometa/status')
+def kometa_status():
+    log_dir = '/tmp/kometa-logs'
+    status = {'state': 'unknown', 'lastRun': None, 'duration': None, 'collections': 0, 'overlays': 0, 'errors': []}
+    log_path = os.path.join(log_dir, 'meta.log')
+    if not os.path.exists(log_path):
+        return jsonify(status)
+    try:
+        with open(log_path) as f:
+            lines = f.readlines()[-200:]
+        for line in reversed(lines):
+            if 'Run Completed' in line or 'Finished' in line:
+                status['state'] = 'sleeping'
+                # Extract timestamp from log line
+                if len(line) > 19:
+                    status['lastRun'] = line[:19].strip()
+                break
+            if 'Run Started' in line or 'Starting' in line:
+                status['state'] = 'syncing'
+                break
+            if 'error' in line.lower() or 'ERROR' in line:
+                status['errors'].append(line.strip()[:200])
+        # Count collections/overlays
+        for line in lines:
+            if 'Collection' in line and ('Created' in line or 'Updated' in line):
+                status['collections'] += 1
+            if 'Overlay' in line and ('Applied' in line or 'Updated' in line):
+                status['overlays'] += 1
+    except Exception:
+        pass
+    return jsonify(status)
+
+
+# ── NH-70 — Deploy Control Panel (ADR-015 file-queue) ─────────
+DEPLOY_DENYLIST = {'gluetun', 'socket-proxy', 'docker-monitor', 'restic-sidecar',
+                   'flask-backend', 'homepage'}
+DEPLOY_QUEUE_DIR = '/tmp/deploy-queue'
+DEPLOY_RESULTS_DIR = '/tmp/deploy-results'
+
+
+@app.route('/api/deploy', methods=['POST'])
+def deploy():
+    data = request.json or {}
+    services = data.get('services', [])
+    build = data.get('build', False)
+
+    if not services:
+        return jsonify({'error': 'no services specified'}), 400
+
+    for svc in services:
+        if svc in DEPLOY_DENYLIST:
+            return jsonify({'error': f'{svc} is deploy-protected'}), 403
+
+    # Reject if queue already has a pending request
+    existing = [f for f in os.listdir(DEPLOY_QUEUE_DIR) if f.endswith('.json')] if os.path.isdir(DEPLOY_QUEUE_DIR) else []
+    if existing:
+        return jsonify({'error': 'deploy already queued'}), 429
+
+    deploy_id = f"deploy-{int(time.time())}"
+    queue_file = os.path.join(DEPLOY_QUEUE_DIR, f'{deploy_id}.json')
+    request_data = {'id': deploy_id, 'services': services, 'build': build, 'queuedAt': time.time()}
+
+    os.makedirs(DEPLOY_QUEUE_DIR, exist_ok=True)
+    with open(queue_file, 'w') as f:
+        json.dump(request_data, f)
+
+    return jsonify({'id': deploy_id, 'status': 'queued'})
+
+
+@app.route('/api/deploy/status/<deploy_id>')
+def deploy_status(deploy_id):
+    if not re.match(r'^deploy-\d+$', deploy_id):
+        return jsonify({'error': 'invalid id'}), 400
+
+    result_file = os.path.join(DEPLOY_RESULTS_DIR, f'{deploy_id}.json')
+    if not os.path.exists(result_file):
+        # Check if still queued
+        queue_file = os.path.join(DEPLOY_QUEUE_DIR, f'{deploy_id}.json')
+        if os.path.exists(queue_file):
+            return jsonify({'id': deploy_id, 'status': 'queued'})
+        return jsonify({'error': 'not found'}), 404
+
+    with open(result_file) as f:
+        result = json.load(f)
+
+    # Include log tail
+    log_file = os.path.join(DEPLOY_RESULTS_DIR, f'{deploy_id}.log')
+    if os.path.exists(log_file):
+        with open(log_file) as f:
+            lines = f.readlines()
+            result['logTail'] = [l.rstrip() for l in lines[-50:]]
+            result['logLines'] = len(lines)
+
+    return jsonify(result)
+
+
+@app.route('/api/deploy/history')
+def deploy_history():
+    history_file = os.path.join(DEPLOY_RESULTS_DIR, 'history.json')
+    if not os.path.exists(history_file):
+        return jsonify([])
+    try:
+        with open(history_file) as f:
+            return jsonify(json.load(f))
+    except Exception:
+        return jsonify([])
 
 
 if __name__ == '__main__':

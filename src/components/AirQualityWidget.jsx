@@ -52,7 +52,7 @@ const PollutantRow = ({ label, data }) => {
   );
 };
 
-export const AirQualityWidget = () => {
+export const AirQualityWidget = ({ headerLabel }) => {
   const [collapsed, setCollapsed] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
@@ -84,7 +84,7 @@ export const AirQualityWidget = () => {
           background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left' }}>
         <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: worstColor, flexShrink: 0 }} />
         <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.4)' }}>
-          ◆ AIR_QUALITY ◆ Chicago_OpenAQ
+          {headerLabel || '◆ AIR_QUALITY ◆ Chicago_OpenAQ'}
         </span>
         <span aria-hidden="true" style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(255,255,255,0.2)', marginLeft: 'auto' }}>
           {collapsed ? '▶' : '▼'}

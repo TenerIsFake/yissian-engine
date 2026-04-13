@@ -64,7 +64,7 @@ function buildLayout(registry) {
   });
 }
 
-const BioGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const BioGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, cardTransform }) => {
   const layout = useMemo(() => buildLayout(elementRegistry), [elementRegistry]);
 
   // Gap junction connectors: same organelleType connect with short lines
@@ -149,14 +149,14 @@ const BioGrid = ({ statsMap, onElementClick, elementRegistry }) => {
               transition={{ duration: 3 + idx * 0.25, repeat: Infinity, ease: 'easeInOut', delay: idx * 0.15 }}
               whileHover={{ scale: 1.12, zIndex: 80 }}
             >
-              <BioCard element={el} stats={stats} onClick={onElementClick} />
+              <BioCard element={el} stats={stats} onClick={onElementClick} cardDisplay={cardTransform?.(el)} />
             </motion.div>
           );
         })}
 
         <div style={{ position: 'absolute', bottom: 8, right: 12, fontSize: 9, fontFamily: 'monospace',
           color: 'rgba(255,255,255,0.1)', letterSpacing: '0.3em', pointerEvents: 'none' }}>
-          ◆ EUKARYOTIC CELL — LIVE VIEW ◆
+          {gridTitle || '◆ EUKARYOTIC CELL — LIVE VIEW ◆'}
         </div>
       </div>
     </div>

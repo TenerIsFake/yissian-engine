@@ -4,7 +4,7 @@ import { activeCATRef } from '../../themes/ThemeContext.jsx';
 import VinylCard from './VinylCard.jsx';
 import { VINYL_OVERLAY } from './vinylConfig.js';
 
-const CARD_W = 72, CARD_H = 80;
+const CARD_W = 66, CARD_H = 66;
 const CW = 1300, CH = 760;
 
 const prefersReducedMotion = typeof window !== 'undefined'
@@ -19,7 +19,7 @@ const SPIN_STYLE = `
   @keyframes vinyl-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 `;
 
-const VinylGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const VinylGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, cardTransform }) => {
   // Group records by genre for crate dividers
   const byGenre = useMemo(() => {
     const groups = {};
@@ -68,7 +68,7 @@ const VinylGrid = ({ statsMap, onElementClick, elementRegistry }) => {
           </div>
           <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,0.25)',
             letterSpacing: '0.4em' }}>
-            ◆ RECORD CRATE — {elementRegistry.length} PRESSINGS ◆
+            {(gridTitle || '◆ RECORD CRATE ◆').replace(/ ◆$/, '')} — {elementRegistry.length} PRESSINGS ◆
           </span>
         </div>
 
@@ -110,7 +110,7 @@ const VinylGrid = ({ statsMap, onElementClick, elementRegistry }) => {
                       whileHover={prefersReducedMotion ? {} : { rotate: 0, scale: 1.08, zIndex: 20, y: -8 }}
                       transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                     >
-                      <VinylCard element={el} stats={stats} onClick={() => {}} />
+                      <VinylCard element={el} stats={stats} onClick={() => {}} cardDisplay={cardTransform?.(el)} />
                       {/* RPM label on spine */}
                       <div style={{ position: 'absolute', bottom: -14, left: 0, right: 0,
                         textAlign: 'center', fontSize: 7, fontFamily: 'monospace',

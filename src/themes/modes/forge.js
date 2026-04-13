@@ -1,0 +1,145 @@
+import { createModeTiers } from '../paletteHelpers.js';
+
+// ── FORGE — Blacksmith / foundry / molten metal ──────────────
+// T1: Cold Iron    — muted grey with warm undertone
+// T2: Ember        — rich orange/copper/amber forging palette
+// T3: Smolder      — rising embers, faint heat shimmer
+// T4: Crucible     — more embers, sparks flying, molten drips
+// T5: Inferno      — sparks, embers, molten rain, rare forge flares
+
+const t2 = {
+  bgBase: '#0C0806',
+  accent: '#FF6B00',
+  dotGridColor: 'rgba(255,107,0,0.04)',
+  cat: {
+    ALKALI:     { bg: 'rgba(255,107,0,0.09)',    border: '#FF6B00', text: '#FF7E20', glow: 'rgba(255,107,0,0.45)' },
+    ALKALINE:   { bg: 'rgba(255,165,0,0.09)',    border: '#FFA500', text: '#FFB520', glow: 'rgba(255,165,0,0.40)' },
+    TRANSITION: { bg: 'rgba(255,69,0,0.09)',     border: '#FF4500', text: '#FF6020', glow: 'rgba(255,69,0,0.45)' },
+    HALOGEN:    { bg: 'rgba(255,140,0,0.09)',    border: '#FF8C00', text: '#FFA010', glow: 'rgba(255,140,0,0.40)' },
+    NOBLE:      { bg: 'rgba(220,80,0,0.09)',     border: '#DC5000', text: '#F06810', glow: 'rgba(220,80,0,0.45)' },
+    LANTHANIDE: { bg: 'rgba(255,185,0,0.09)',    border: '#FFB900', text: '#FFC820', glow: 'rgba(255,185,0,0.40)' },
+    POST:       { bg: 'rgba(180,70,10,0.07)',    border: '#B44610', text: '#C85820', glow: 'rgba(180,70,10,0.30)' },
+    METALLOID:  { bg: 'rgba(255,120,30,0.07)',   border: '#FF7820', text: '#FF8830', glow: 'rgba(255,120,30,0.30)' },
+    NONMETAL:   { bg: 'rgba(255,200,120,0.07)',  border: '#FFC878', text: '#FFD090', glow: 'rgba(255,200,120,0.25)' },
+    ACTINIDE:   { bg: 'rgba(200,100,0,0.07)',    border: '#C86400', text: '#DC7810', glow: 'rgba(200,100,0,0.30)' },
+    PNICTOGEN:  { bg: 'rgba(255,50,0,0.09)',     border: '#FF3200', text: '#FF5020', glow: 'rgba(255,50,0,0.45)' },
+    CHALCOGEN:  { bg: 'rgba(255,220,0,0.09)',    border: '#FFDC00', text: '#FFE420', glow: 'rgba(255,220,0,0.40)' },
+  },
+};
+
+const sceneConfig = {
+  particles: [
+    {
+      id: 'ember',
+      behavior: 'rise',
+      render: 'dot',
+      spawnRate: [0, 0, 0.26, 0.6, 1.0],
+      speed: [0.5, 2],
+      size: [1, 3],
+      color: '#FF6600',
+      opacity: 1.0,
+      lifetime: [80, 200],
+      driftFreq: 0.02,
+    },
+    {
+      id: 'spark',
+      behavior: 'linear',
+      render: 'trail',
+      spawnRate: [0, 0, 0.05, 0.18, 0.44],
+      speed: [3, 8],
+      angle: [220, 320],
+      size: [0.5, 1],
+      trailLength: 8,
+      color: '#FFCC00',
+      opacity: 1.0,
+      lifetime: [10, 25],
+      cascade: true,
+    },
+    {
+      id: 'moltenDrip',
+      behavior: 'fall',
+      render: 'glow',
+      spawnRate: [0, 0, 0, 0.05, 0.14],
+      speed: [1, 3],
+      size: [2, 4],
+      glowRadius: 8,
+      color: '#FF4400',
+      opacity: 1.0,
+      lifetime: [60, 150],
+    },
+    {
+      id: 'heatParticle',
+      behavior: 'rise',
+      render: 'dot',
+      spawnRate: [0, 0, 0, 0.08, 0.26],
+      speed: [0.2, 0.8],
+      size: [0.3, 1],
+      color: '#FFAA00',
+      opacity: 0.4,
+      lifetime: [100, 250],
+      driftFreq: 0.05,
+      driftAmplitude: 50,
+    },
+    {
+      id: 'forgeFlare',
+      behavior: 'flash',
+      render: 'glow',
+      spawnRate: [0, 0, 0, 0, 0.03],
+      size: [3, 8],
+      glowRadius: 25,
+      color: '#FFAA00',
+      opacity: 1.0,
+      lifetime: [20, 40],
+      cascade: true,
+    },
+    {
+      id: 'anvilRing',
+      behavior: 'flash',
+      render: 'glow',
+      spawnRate: [0, 0, 0, 0.03, 0.1],
+      size: [12, 25],
+      glowRadius: 18,
+      color: '#FFDD44',
+      opacity: 1.0,
+      lifetime: [6, 15],
+    },
+    {
+      id: 'slagDrip',
+      behavior: 'fall',
+      render: 'trail',
+      spawnRate: [0, 0, 0, 0.04, 0.12],
+      speed: [1.5, 4],
+      size: [1.5, 3],
+      trailLength: 10,
+      color: '#CC3300',
+      opacity: 0.975,
+      lifetime: [50, 120],
+    },
+    {
+      id: 'bellowsGust',
+      behavior: 'drift',
+      render: 'line',
+      spawnRate: [0, 0, 0, 0.03, 0.08],
+      speed: [2, 5],
+      size: [1, 2],
+      color: '#FF8844',
+      opacity: [0.4, 0.8],
+      lifetime: [40, 100],
+    },
+  ],
+};
+
+export default createModeTiers('FORGE', {
+  tierNames: ['Cold Iron', 'Ember', 'Smolder', 'Crucible', 'Inferno'],
+  tierTooltips: [
+    'Muted grey with warm undertone',
+    'Rich orange/copper forging palette',
+    'Faint rising embers',
+    'Sparks and molten metal',
+    'Full forge inferno',
+  ],
+  t1: { bgBase: '#0A0908', accent: '#AA9988', dotGridColor: 'rgba(170,153,136,0.03)' },
+  t2,
+  sceneConfig,
+  flavorHue: 25,
+});

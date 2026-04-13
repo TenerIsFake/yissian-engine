@@ -9,19 +9,40 @@ export function loadStoredResults() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    // Return latest entry from each server's history array
+    const srv1Arr = Array.isArray(parsed.srv1) ? parsed.srv1 : [];
+    const srv2Arr = Array.isArray(parsed.srv2) ? parsed.srv2 : [];
+    const last1 = srv1Arr[srv1Arr.length - 1];
+    const last2 = srv2Arr[srv2Arr.length - 1];
+    return {
+      srv1: last1 ? { downloadMbps: last1.mbps, timestamp: last1.ts } : null,
+      srv2: last2 ? { downloadMbps: last2.mbps, timestamp: last2.ts } : null,
+    };
   } catch (_) {
     return null;
   }
 }
 
 export function saveResults(srv1Mbps, srv2Mbps) {
-  const data = {
-    srv1: { downloadMbps: srv1Mbps, timestamp: Date.now() },
-    srv2: { downloadMbps: srv2Mbps, timestamp: Date.now() },
-  };
+  const now = Date.now();
+  let existing = { srv1: [], srv2: [] };
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Migrate from old single-object format to array format
+      existing.srv1 = Array.isArray(parsed.srv1) ? parsed.srv1 : [];
+      existing.srv2 = Array.isArray(parsed.srv2) ? parsed.srv2 : [];
+    }
+  } catch (_) {}
+  if (srv1Mbps != null) existing.srv1.push({ ts: now, mbps: srv1Mbps });
+  if (srv2Mbps != null) existing.srv2.push({ ts: now, mbps: srv2Mbps });
+  // Keep last 10 entries per server
+  existing.srv1 = existing.srv1.slice(-10);
+  existing.srv2 = existing.srv2.slice(-10);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
   } catch (_) {}
 }
 

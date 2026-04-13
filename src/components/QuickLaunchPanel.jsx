@@ -7,7 +7,7 @@ const SECONDARY_URL = 'http://10.0.0.155';
 const MUSIC_REQUEST_URL = `${PRIMARY_URL}:5050`;
 const SEERR_URL = `${SECONDARY_URL}:5055`;
 
-export const QuickLaunchPanel = () => {
+export const QuickLaunchPanel = ({ headerLabel }) => {
   const buttons = [
     { label: 'PLEX',        sublabel: 'MEDIA_SERVER',   url: `${PRIMARY_URL}:32400/web`, catKey: 'LANTHANIDE', desc: 'Stream media' },
     { label: 'SEERR',       sublabel: 'REQUESTS',       url: SEERR_URL,                  catKey: 'LANTHANIDE', desc: 'Movies & TV' },
@@ -22,7 +22,7 @@ export const QuickLaunchPanel = () => {
   return (
     <div className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-md px-6 py-4 h-full">
       <div className="text-[9px] font-mono tracking-[0.3em] text-white/25 mb-4 uppercase">
-        ◆ Quick_Launch ◆ Service_Portals
+        {headerLabel || '◆ Quick_Launch ◆ Service_Portals'}
       </div>
       <div className="grid grid-cols-2 gap-2">
         {buttons.map(btn => {

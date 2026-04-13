@@ -92,7 +92,7 @@ const LiveClock = () => {
   return <span style={{ fontFamily: MONO, fontSize: 11, color: 'rgba(255,200,50,0.8)', minWidth: 80 }}>{time}</span>;
 };
 
-const AirportGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const AirportGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, cardTransform }) => {
   // Sort: online + critical first, offline last.
   // localTime is computed here (not in render body) so FlipCell values are stable
   // between stats polls — recomputing Date.now() on every render would trigger
@@ -130,7 +130,7 @@ const AirportGrid = ({ statsMap, onElementClick, elementRegistry }) => {
           padding: '8px 16px', background: 'rgba(0,0,0,0.5)',
           borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           <span style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.4em' }}>
-            ◆ DEPARTURES ◆
+            {gridTitle || '◆ DEPARTURES ◆'}
           </span>
           <LiveClock />
           <span style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(255,200,50,0.5)', letterSpacing: '0.3em' }}>

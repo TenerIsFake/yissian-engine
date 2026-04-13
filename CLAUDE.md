@@ -14,7 +14,7 @@ No linting or test scripts are configured.
 
 ## Architecture
 
-**Single-file React SPA** — nearly all logic lives in `App.jsx` (~3,000 lines). Entry points: `index.html` → `src/main.jsx` → `App.jsx`.
+**React SPA** — core orchestration in `App.jsx` (~1,063 lines). Mode dispatch via `src/modeRegistry.js` (table-driven). Service polling via `src/hooks/useServicePoller.js`. Shared constants in `src/utils/constants.js`. Entry points: `index.html` → `src/main.jsx` → `App.jsx`.
 
 **Tech stack:** React 18 + Vite, Tailwind CSS, Framer Motion (animations), Lucide-React (icons).
 
@@ -104,7 +104,16 @@ Below the header and ActiveOperationsBar, the `<main>` block renders these secti
 ### Key Files
 | File | Purpose |
 |------|---------|
-| `App.jsx` | Main SPA (~3,000 lines) — all service polling, state, widget row, and CHEM-mode rendering |
+| `App.jsx` | Main SPA (~1,063 lines) — state, service pollers, layout |
+| `src/modeRegistry.js` | Table-driven mode dispatch — Grid, DetailPanel, labels, ticker, log title per mode |
+| `src/hooks/useServicePoller.js` | Generic polling hook — 20 services use this instead of raw useEffect |
+| `src/utils/constants.js` | Shared constants (getStatusTier, PRIMARY_URL, MONO, etc.) |
+| `src/components/ElementDetailPanel.jsx` | CHEM-mode element detail panel (Docker, Terminal, Hue, CF, Tautulli) |
+| `src/components/BotDetailPanel.jsx` | Bot recommendation detail panel with Plex/Seerr links |
+| `src/components/DiscoveryTicker.jsx` | Auto-scrolling media discovery reel (films/series/music) |
+| `src/components/LabJournal.jsx` | Live log stream with service filter and expand/collapse |
+| `src/components/PeriodicHeader.jsx` | Header bar (mode toggle, theme selector, clock, status badge) |
+| `src/components/FreshRssTickerWidget.jsx` | FreshRSS headlines auto-scroller (React Query) |
 | `backend/server.py` | Flask API — Gemini chat + yfinance stock endpoints |
 | `backend/requirements.txt` | Python deps for the flask-backend Docker image |
 | `backend/.env` | `GEMINI_API_KEY` — gitignored, must be populated before first run |

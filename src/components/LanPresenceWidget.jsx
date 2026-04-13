@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 const MONO = 'monospace';
 
-export const LanPresenceWidget = () => {
+export const LanPresenceWidget = ({ headerLabel }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [wakeMsg, setWakeMsg] = useState({});   // hostId → message string
   const qc = useQueryClient();
@@ -48,7 +48,7 @@ export const LanPresenceWidget = () => {
         style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
           background: 'none', border: 'none', padding: 0, width: '100%', textAlign: 'left' }}>
         <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.4)' }}>
-          ◆ LAN_PRESENCE ◆ {hosts.length} hosts
+          {headerLabel || '◆ LAN_PRESENCE ◆'} {hosts.length} hosts
         </span>
         {offlineCount > 0 && (
           <span style={{ fontFamily: MONO, fontSize: 7, padding: '1px 6px', borderRadius: 3,

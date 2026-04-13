@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 
 const MONO = 'monospace';
 
-const PlexLibraryStatsWidget = ({ data, isLoading }) => {
+const PlexLibraryStatsWidget = ({ data, isLoading, widgetLabels }) => {
   const { movies = 0, shows = 0, albums = 0 } = data || {};
   if (isLoading) return <div style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,0.3)', padding: 16 }}>LOADING...</div>;
   const cols = [
@@ -17,7 +17,7 @@ const PlexLibraryStatsWidget = ({ data, isLoading }) => {
       padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.3em',
         color: 'rgba(255,255,255,0.4)', marginBottom: 2 }}>
-        ◆ LIBRARY_STATS ◆ Plex_Counts
+        {widgetLabels?.plexLibrary || '◆ LIBRARY_STATS ◆ Plex_Counts'}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         {cols.map(({ label, value, color, icon }) => (
@@ -40,7 +40,7 @@ const PlexLibraryStatsWidget = ({ data, isLoading }) => {
   );
 };
 
-const PlexLiveSessionsWidget = ({ data, isLoading }) => {
+const PlexLiveSessionsWidget = ({ data, isLoading, widgetLabels }) => {
   const [hoverThumb, setHoverThumb] = React.useState(null);  // { idx, url, x, y }
 
   const sessions = data?.sessions || [];
@@ -83,7 +83,7 @@ const PlexLiveSessionsWidget = ({ data, isLoading }) => {
       padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
       <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.3em',
         color: 'rgba(255,255,255,0.4)', marginBottom: 2 }}>
-        ◆ LIVE_SESSIONS ◆ Plex_Active_Streams
+        {widgetLabels?.plexSessions || '◆ LIVE_SESSIONS ◆ Plex_Active_Streams'}
         {data?.stream_count > 0 && (
           <span style={{ marginLeft: 8, color: '#22c55e', fontSize: 8 }}>[{data.stream_count}]</span>
         )}
@@ -95,7 +95,7 @@ const PlexLiveSessionsWidget = ({ data, isLoading }) => {
           NO_ACTIVE_SESSIONS
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
+        <div role="list" aria-label="Active Plex sessions" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
           {sessions.map((s, i) => {
             const tc = isTranscode(s);
             const isLive = !s.duration || s.duration === 0;
@@ -104,11 +104,16 @@ const PlexLiveSessionsWidget = ({ data, isLoading }) => {
               ? ` S${String(s.parent_media_index).padStart(2,'0')}E${String(s.media_index).padStart(2,'0')}` : '';
             return (
               <div key={i}
+                tabIndex={0}
+                role="listitem"
+                aria-label={`${s.title}${s.user ? ` — ${s.user}` : ''}`}
                 onMouseEnter={(e) => fetchThumb(s.grandparent_thumb || s.thumb, i, e)}
                 onMouseLeave={() => { if (hoverThumb?.idx === i) { URL.revokeObjectURL(hoverThumb.url); setHoverThumb(null); } }}
+                onFocus={(e) => fetchThumb(s.grandparent_thumb || s.thumb, i, e)}
+                onBlur={() => { if (hoverThumb?.idx === i) { URL.revokeObjectURL(hoverThumb.url); setHoverThumb(null); } }}
                 style={{ padding: '6px 8px', background: 'rgba(255,255,255,0.03)',
                   border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8,
-                  display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  display: 'flex', flexDirection: 'column', gap: 4, outline: 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 11 }}>{mediaEmoji(s.media_type)}</span>
                   <span style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,0.85)',
@@ -165,7 +170,7 @@ const PlexLiveSessionsWidget = ({ data, isLoading }) => {
   );
 };
 
-const PlexOnDeckWidget = ({ data, isLoading }) => {
+const PlexOnDeckWidget = ({ data, isLoading, widgetLabels }) => {
   const items = data || [];
   if (isLoading) return <div style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,0.3)', padding: 16 }}>LOADING...</div>;
 
@@ -181,7 +186,7 @@ const PlexOnDeckWidget = ({ data, isLoading }) => {
       padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.3em',
         color: 'rgba(255,255,255,0.4)', marginBottom: 2 }}>
-        ◆ ON_DECK ◆ Plex_In_Progress
+        {widgetLabels?.plexOnDeck || '◆ ON_DECK ◆ Plex_In_Progress'}
       </div>
       {items.length === 0 ? (
         <div style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.15em' }}>NO_ITEMS_IN_PROGRESS</div>
@@ -208,7 +213,7 @@ const PlexOnDeckWidget = ({ data, isLoading }) => {
   );
 };
 
-export const PlexEcosystemRow = ({ addLog }) => {
+export const PlexEcosystemRow = ({ addLog, widgetLabels }) => {
   const libQuery = useQuery({
     queryKey: ['plex-library'],
     queryFn: async () => {
@@ -268,9 +273,9 @@ export const PlexEcosystemRow = ({ addLog }) => {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <PlexLibraryStatsWidget data={libQuery.data} isLoading={libQuery.isLoading} />
-      <PlexOnDeckWidget data={onDeckQuery.data} isLoading={onDeckQuery.isLoading} />
-      <PlexLiveSessionsWidget data={liveQuery.data} isLoading={liveQuery.isLoading} />
+      <PlexLibraryStatsWidget data={libQuery.data} isLoading={libQuery.isLoading} widgetLabels={widgetLabels} />
+      <PlexOnDeckWidget data={onDeckQuery.data} isLoading={onDeckQuery.isLoading} widgetLabels={widgetLabels} />
+      <PlexLiveSessionsWidget data={liveQuery.data} isLoading={liveQuery.isLoading} widgetLabels={widgetLabels} />
     </div>
   );
 };

@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { activeCATRef } from '../../themes/ThemeContext.jsx';
-import ParticleCard from './ParticleCard.jsx';
+import ParticleCard, { PARTICLE_CARD_SIZES } from './ParticleCard.jsx';
 
-const CARD_W = 72, CARD_H = 80;
+const CARD_W = PARTICLE_CARD_SIZES.heavy, CARD_H = PARTICLE_CARD_SIZES.heavy;
 const CW = 1300, CH = 760;
 const CX = CW / 2, CY = CH / 2;
 
@@ -50,7 +50,7 @@ const BURST_STYLE = `
   }
 `;
 
-const ParticleGrid = ({ statsMap, onElementClick, elementRegistry }) => {
+const ParticleGrid = ({ statsMap, onElementClick, elementRegistry, gridTitle, cardTransform }) => {
   const layout = useMemo(() => buildLayout(elementRegistry), [elementRegistry]);
 
   return (
@@ -143,14 +143,14 @@ const ParticleGrid = ({ statsMap, onElementClick, elementRegistry }) => {
               // T1-03 / SECURITY OVERRIDE: none — UX fix; all other grids guard whileHover
               whileHover={prefersReducedMotion ? {} : { scale: 1.12, zIndex: 80 }}
             >
-              <ParticleCard element={el} stats={stats} onClick={() => onElementClick(el)} />
+              <ParticleCard element={el} stats={stats} onClick={() => onElementClick(el)} cardDisplay={cardTransform?.(el)} />
             </motion.div>
           );
         })}
 
         <div style={{ position: 'absolute', bottom: 8, right: 12, fontSize: 9, fontFamily: 'monospace',
           color: 'rgba(255,255,255,0.1)', letterSpacing: '0.3em', pointerEvents: 'none' }}>
-          ◆ BUBBLE CHAMBER — EVENT DISPLAY ◆
+          {gridTitle || '◆ BUBBLE CHAMBER — EVENT DISPLAY ◆'}
         </div>
       </div>
     </div>

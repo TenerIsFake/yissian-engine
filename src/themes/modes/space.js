@@ -1,0 +1,148 @@
+import { createModeTiers } from '../paletteHelpers.js';
+
+// ── SPACE — Stellar / cosmic / observatory ───────────────────
+// T1: Lunar       — monochrome silver, silent void
+// T2: Nebula      — rich indigo/violet/pink nebula colors
+// T3: Starfield   — twinkling stars, rare shooting stars, ultra-rare comets
+// T4: Meteor Watch — meteor showers, less-rare shooting stars, rare comets
+// T5: Deep Space  — all of the above + super-rare asteroids
+
+const t2 = {
+  bgBase: '#06040E',
+  accent: '#8B5CF6',
+  dotGridColor: 'rgba(139,92,246,0.04)',
+  cat: {
+    ALKALI:     { bg: 'rgba(139,92,246,0.09)',   border: '#8B5CF6', text: '#A78BFA', glow: 'rgba(139,92,246,0.45)' },
+    ALKALINE:   { bg: 'rgba(99,102,241,0.09)',    border: '#6366F1', text: '#818CF8', glow: 'rgba(99,102,241,0.40)' },
+    TRANSITION: { bg: 'rgba(168,85,247,0.09)',    border: '#A855F7', text: '#C084FC', glow: 'rgba(168,85,247,0.40)' },
+    HALOGEN:    { bg: 'rgba(236,72,153,0.09)',    border: '#EC4899', text: '#F472B6', glow: 'rgba(236,72,153,0.40)' },
+    NOBLE:      { bg: 'rgba(59,130,246,0.09)',    border: '#3B82F6', text: '#60A5FA', glow: 'rgba(59,130,246,0.45)' },
+    LANTHANIDE: { bg: 'rgba(192,132,252,0.09)',   border: '#C084FC', text: '#D8B4FE', glow: 'rgba(192,132,252,0.40)' },
+    POST:       { bg: 'rgba(100,116,139,0.07)',   border: '#64748B', text: '#94A3B8', glow: 'rgba(100,116,139,0.25)' },
+    METALLOID:  { bg: 'rgba(129,140,248,0.07)',   border: '#818CF8', text: '#A5B4FC', glow: 'rgba(129,140,248,0.30)' },
+    NONMETAL:   { bg: 'rgba(196,181,253,0.07)',   border: '#C4B5FD', text: '#DDD6FE', glow: 'rgba(196,181,253,0.20)' },
+    ACTINIDE:   { bg: 'rgba(67,56,202,0.08)',     border: '#4338CA', text: '#6366F1', glow: 'rgba(67,56,202,0.35)' },
+    PNICTOGEN:  { bg: 'rgba(147,51,234,0.09)',    border: '#9333EA', text: '#A855F7', glow: 'rgba(147,51,234,0.40)' },
+    CHALCOGEN:  { bg: 'rgba(34,211,238,0.09)',    border: '#22D3EE', text: '#67E8F9', glow: 'rgba(34,211,238,0.40)' },
+  },
+};
+
+const sceneConfig = {
+  particles: [
+    {
+      id: 'star',
+      behavior: 'twinkle',
+      render: 'dot',
+      count: [0, 0, 850, 1200, 1600],
+      size: [0.5, 2.5],
+      color: '#FFFFFF',
+      opacity: [0.4, 1.0],
+      twinkleSpeed: [0.008, 0.025],
+      lifetime: Infinity,
+    },
+    {
+      id: 'shootingStar',
+      behavior: 'linear',
+      render: 'trail',
+      spawnRate: [0, 0, 0.03, 0.12, 0.3],
+      speed: [5, 10],
+      angle: [200, 250],
+      size: [1, 1.5],
+      trailLength: 25,
+      color: '#FFFFFF',
+      opacity: 1.0,
+      lifetime: [40, 80],
+    },
+    {
+      id: 'comet',
+      behavior: 'curve',
+      render: 'glow',
+      spawnRate: [0, 0, 0.005, 0.03, 0.09],
+      speed: [1.5, 3],
+      angle: [200, 260],
+      size: [2.5, 4],
+      trailLength: 50,
+      glowRadius: 12,
+      color: '#88CCFF',
+      opacity: 1.0,
+      lifetime: [120, 250],
+      curveFactor: [-0.003, 0.003],
+    },
+    {
+      id: 'meteor',
+      behavior: 'linear',
+      render: 'trail',
+      spawnRate: [0, 0, 0, 0.22, 0.45],
+      speed: [8, 16],
+      angle: [195, 255],
+      size: [0.8, 1.2],
+      trailLength: 12,
+      color: '#FFAA44',
+      opacity: 1.0,
+      lifetime: [15, 35],
+      cascade: true,
+    },
+    {
+      id: 'asteroid',
+      behavior: 'linear',
+      render: 'shape',
+      spawnRate: [0, 0, 0, 0, 0.018],
+      speed: [0.8, 2.5],
+      angle: [170, 260],
+      size: [3, 7],
+      tumble: true,
+      tumbleSpeed: [0.02, 0.06],
+      color: '#8B7B6B',
+      opacity: 0.9,
+      lifetime: [200, 400],
+    },
+    {
+      id: 'nebulaDust',
+      behavior: 'drift',
+      render: 'glow',
+      count: [0, 0, 0, 120, 300],
+      size: [15, 35],
+      color: '#AA66DD',
+      opacity: [0.4, 0.8],
+      speed: [0.05, 0.2],
+      lifetime: [400, 800],
+    },
+    {
+      id: 'pulsar',
+      behavior: 'flash',
+      render: 'glow',
+      spawnRate: [0, 0, 0, 0.04, 0.12],
+      size: [3, 8],
+      glowRadius: 15,
+      color: '#FFFFFF',
+      opacity: 1.0,
+      lifetime: [4, 10],
+    },
+    {
+      id: 'darkMatter',
+      behavior: 'twinkle',
+      render: 'dot',
+      count: [0, 0, 0, 150, 400],
+      size: [4, 10],
+      color: '#6644AA',
+      opacity: [0.4, 0.8],
+      twinkleSpeed: [0.003, 0.01],
+      lifetime: Infinity,
+    },
+  ],
+};
+
+export default createModeTiers('SPACE', {
+  tierNames: ['Lunar', 'Nebula', 'Starfield', 'Meteor Watch', 'Deep Space'],
+  tierTooltips: [
+    'Monochrome silver — silent void',
+    'Rich indigo/violet nebula',
+    'Twinkling starfield with rare shooting stars',
+    'Meteor showers and cosmic activity',
+    'Full deep space spectacle',
+  ],
+  t1: { bgBase: '#0A0A0C', accent: '#B0B0C0', dotGridColor: 'rgba(176,176,192,0.03)' },
+  t2,
+  sceneConfig,
+  flavorHue: 260,
+});

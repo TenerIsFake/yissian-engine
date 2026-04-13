@@ -3,8 +3,8 @@ WORKDIR /app
 RUN useradd --no-create-home -u 1000 appuser
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY server.py .
-RUN chown appuser:appuser /app/server.py
+COPY server.py models.py tools.py context.py ./
+RUN mkdir -p /data && chown -R appuser:appuser /app /data
 USER appuser
 EXPOSE 5000
-CMD ["gunicorn", "--workers=2", "--timeout=60", "--bind=0.0.0.0:5000", "server:app"]
+CMD ["gunicorn", "--workers=2", "--threads=4", "--timeout=120", "--preload", "--bind=0.0.0.0:5000", "server:app"]
