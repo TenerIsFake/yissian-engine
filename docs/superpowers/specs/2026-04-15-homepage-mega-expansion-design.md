@@ -273,7 +273,20 @@ The 9 existing behaviors (`twinkle`, `linear`, `rise`, `fall`, `drift`, `flash`,
 
 1. **No two modes share the same Primary+Secondary pair**
 2. **Modes in the same thematic neighborhood have different primaries** (all 10 science modes have different primaries)
-3. **Two deliberate mirror pairs** exist: ARCANE↔REACTOR (lightning/vortex swapped) and MOLECULE↔DNA (orbit/chain swapped). The primary/secondary weight difference makes them visually distinct.
+3. **One deliberate mirror pair** exists: MOLECULE↔DNA (orbit/chain swapped). The primary/secondary weight difference makes them visually distinct.
+
+### Review Notes (Session 65 audit)
+
+Six combos were revised after a comprehensive thematic-accuracy review:
+
+| Mode | Before → After | Rationale |
+|------|---------------|-----------|
+| ARCANE | lightning+vortex → lightning+**orbit** | Orbiting spell wards/circles is distinctly magical; vortex reads tornado |
+| WEATHER | hologram+wave → **aurora**+wave | Weather should feel atmospheric, not like a radar readout; separates from TACTICAL |
+| BAND | lightning+scatter → **comet**+**bounce** | All-punctuation combo had no sustained layer; comets give persistent kinetic base, bounce = confetti physics |
+| STEAM | smoke+bounce → smoke+**orbit** | Spinning gears are core steampunk iconography; bounce had no mechanical resonance |
+| HEIST | smoke+lightning → smoke+**bounce** | Ricocheting bullets/tools off vault walls is more heist-action than jagged electrical arcs |
+| QUANTUM | warp+pulse → **nebula**+pulse | Probability clouds (nebula) IS quantum mechanics; warp reads hyperspace |
 
 ### Existing 30 Modes — Upgraded Profiles
 
@@ -282,29 +295,29 @@ The 9 existing behaviors (`twinkle`, `linear`, `rise`, `fall`, `drift`, `flash`,
 | 1 | CHEM | ripple | scatter | rise | Reaction rings radiate, reagent bursts scatter, vapor rises |
 | 2 | SPACE | comet | orbit | twinkle | Shooting stars arc, debris in orbital paths, distant stars twinkle |
 | 3 | NEURAL | matrix | constellation | flash | Data cascades through connected synapse lines, intersection flashes |
-| 4 | ARCANE | lightning | vortex | shimmer | Eldritch arcs between runes, spell energy spirals, gems shimmer |
+| 4 | ARCANE | lightning | orbit | shimmer | Eldritch arcs between runes, protective ward circles orbit caster points, gems shimmer |
 | 5 | BIO | firefly | pulse | drift | Bioluminescent organelles flock, membranes pulse, cytoplasm drifts |
 | 6 | MOLECULE | orbit | chain | twinkle | Electrons trace shells, molecular bonds chain atoms, valence glints |
 | 7 | PLANET | aurora | ripple | drift | Aurora bands undulate, pressure ripples expand, cosmic dust drifts |
-| 8 | WEATHER | hologram | wave | fall | Radar scan lines sweep, pressure fronts as waves, precipitation falls |
+| 8 | WEATHER | aurora | wave | fall | Cloud-lit sky bands undulate, pressure fronts propagate as waves, precipitation falls |
 | 9 | AIRPORT | warp | linear | flash | Departure radials converge, flight paths cross, beacons flash |
 | 10 | DINO | comet | scatter | fall | Extinction meteors streak, debris bursts on impact, ash falls |
 | 11 | NOIR | smoke | flicker | linear | Fog rolls through alleys, neon flickers, headlight beams |
 | 12 | VINYL | wave | orbit | flicker | Sound waves from stylus, groove rings orbit platter, tube amp flicker |
-| 13 | BAND | lightning | scatter | flash | Pyro arcs between rigs, confetti cannons scatter, strobe flashes |
+| 13 | BAND | comet | bounce | flash | Stage pyro comets arc overhead, confetti balls bounce off stage floor, strobe flashes |
 | 14 | PARTICLE | vortex | curve | flash | Collider ring spirals inward, decay products curve out, collision flashes |
 | 15 | GLOBE | constellation | drift | twinkle | Trade routes connect nodes, weather systems drift, city lights twinkle |
 | 16 | FORGE | aurora | lightning | rise | Heat curtains from anvil, spark arcs on hammer strikes, embers rise |
 | 17 | OCEAN | ripple | wave | drift | Surface ripples from marine life, deep current waves, plankton drifts |
 | 18 | TACTICAL | hologram | flash | linear | Tactical display scans, contacts flash on detection, tracer lines |
-| 19 | STEAM | smoke | bounce | rise | Pressure clouds billow, valve particles ricochet, steam rises |
+| 19 | STEAM | smoke | orbit | rise | Pressure clouds billow, gear mechanisms orbit in place, steam rises |
 | 20 | ARCADE | matrix | bounce | flash | Pixel code rains, physics balls bounce off platforms, power-up flashes |
 | 21 | BLUEPRINT | hologram | linear | flash | Scan lines reveal annotations, dimension lines extend, callout flashes |
 | 22 | APOTHECARY | smoke | chain | fall | Potion vapor curls, ingredient drip chains descend, powder sifts |
 | 23 | FUNHOUSE | scatter | bounce | flicker | Prize explosions scatter, balls bounce off bumpers, carnival flicker |
 | 24 | METRO | warp | chain | flash | Tunnel perspective converges, linked carriages undulate, signals flash |
 | 25 | SAFARI | firefly | drift | sway | Amber insect clusters flock, heat pollen drifts, tall grass sways |
-| 26 | HEIST | smoke | lightning | linear | Smoke bombs deploy, laser security arcs discharge, laser beams |
+| 26 | HEIST | smoke | bounce | linear | Smoke bombs deploy, ricochets bounce off vault walls, laser beam lines |
 | 27 | AQUARIUM | ripple | firefly | rise | Surface ripples from fish, bioluminescent schools flock, bubbles rise |
 | 28 | GARDEN | fractal | drift | sway | Vines branch outward, pollen drifts on breeze, blossoms sway |
 | 29 | BREW | nebula | rise | shimmer | Hop aroma clouds morph, carbonation bubbles rise, copper shimmer |
@@ -349,7 +362,7 @@ The 9 existing behaviors (`twinkle`, `linear`, `rise`, `fall`, `drift`, `flash`,
 
 | # | Mode | Primary | Secondary | Fill | Scene |
 |---|------|---------|-----------|------|-------|
-| 51 | QUANTUM | warp | pulse | hover | Probability clouds radiate, wave function collapse pulses, uncertainty jitter |
+| 51 | QUANTUM | nebula | pulse | hover | Probability clouds form and shift, wave function collapse pulses, uncertainty jitter |
 | 52 | REACTOR | vortex | lightning | flash | Tokamak plasma spirals, breakout arcs discharge, neutron flashes |
 | 53 | SONAR | ripple | pulse | hover | Echolocation pings expand, echo returns pulse inward, deep silence |
 | 54 | DNA | chain | orbit | shimmer | Backbone chains undulate helically, base-pair bridges orbit axis, phosphor shimmer |
@@ -365,18 +378,18 @@ The 9 existing behaviors (`twinkle`, `linear`, `rise`, `fall`, `drift`, `flash`,
 | Primary | Count | Modes |
 |---------|-------|-------|
 | smoke | 6 | NOIR, STEAM, APOTHECARY, HEIST, INK, LAVA_LAMP |
+| nebula | 6 | BREW, DREAMSCAPE, DEEP_SEA, THUNDERHEAD, GLACIER, QUANTUM |
 | fractal | 5 | GARDEN, ORIGAMI, JUNGLE, CRYSTAL, CORAL |
-| nebula | 5 | BREW, DREAMSCAPE, DEEP_SEA, THUNDERHEAD, GLACIER |
 | vortex | 5 | PARTICLE, KALEIDOSCOPE, BAZAAR, REACTOR, RADAR |
-| warp | 5 | AIRPORT, METRO, VOLCANO, QUANTUM, WIND_TUNNEL |
+| aurora | 4 | PLANET, FORGE, TUNDRA, WEATHER |
+| comet | 4 | SPACE, DINO, LANTERN, BAND |
 | ripple | 4 | CHEM, OCEAN, AQUARIUM, SONAR |
-| hologram | 4 | WEATHER, TACTICAL, BLUEPRINT, MRI |
-| aurora | 3 | PLANET, FORGE, TUNDRA |
-| lightning | 3 | ARCANE, BAND, CIRCUIT |
+| warp | 4 | AIRPORT, METRO, VOLCANO, WIND_TUNNEL |
+| hologram | 3 | TACTICAL, BLUEPRINT, MRI |
 | constellation | 3 | GLOBE, LIBRARY, TAROT |
 | matrix | 3 | NEURAL, ARCADE, MONSOON |
-| comet | 3 | SPACE, DINO, LANTERN |
 | wave | 3 | VINYL, SEISMOGRAPH, OSCILLOSCOPE |
+| lightning | 2 | ARCANE, CIRCUIT |
 | firefly | 2 | BIO, SAFARI |
 | scatter | 2 | FUNHOUSE, GRAFFITI |
 | chain | 2 | PUPPET, DNA |
