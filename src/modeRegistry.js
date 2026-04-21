@@ -74,7 +74,7 @@ import { LIBRARY_LABELS, LIBRARY_OVERLAY } from './dashboards/library/libraryCon
 import ReagentBottle from './dashboards/schlenk/diagrams/ReagentBottle.jsx';
 import SolventReservoir from './dashboards/schlenk/diagrams/SolventReservoir.jsx';
 import PiraniTrace from './dashboards/schlenk/diagrams/PiraniTrace.jsx';
-import { getElementGas } from './dashboards/schlenk/elementGases.js';
+import { getElementColor } from './dashboards/schlenk/elementColors.js';
 
 // ── Diagram components (lazy-loaded — rendered in SystemMetricsPanel per mode) ──
 const StellarCoreMonitor = lazy(() => import('./dashboards/space/StellarCoreMonitor.jsx'));
@@ -1253,28 +1253,27 @@ const MODE_REGISTRY = {
     MediaStorageDiagram: SolventReservoir,
     SpeedtestDiagram: PiraniTrace,
     detailTransform: (element) => {
-      const gas = getElementGas(element.symbol);
+      const c = getElementColor(element.symbol);
       return {
         title: element.name.toUpperCase(),
-        subtitle: `Z = ${element.z} ◆ under ${gas.label}`,
+        subtitle: `Z = ${element.z} ◆ ${c.compound}`,
         categoryLabel: (CATEGORY_LABELS[element.cat] || element.cat).toUpperCase(),
         metadata: [
           { label: 'ELECTRON_CONFIGURATION', value: element.electronConfig },
-          { label: 'GAS_ATMOSPHERE', value: gas.label },
+          { label: 'COMPOUND_REFERENCE', value: c.compound },
         ],
         statusLabels: ['INERT', 'BUBBLING', 'REFLUX', 'BUMPING'],
-        serviceLinkColor: gas.color,
+        serviceLinkColor: c.color,
       };
     },
     cardTransform: (element) => {
-      const gas = getElementGas(element.symbol);
+      const c = getElementColor(element.symbol);
       return {
-        topLeft: gas.label,
+        topLeft: String(element.z),
         centerLabel: element.symbol,
         displayName: element.service || element.name,
         bottomLabel: element.mass,
-        liquidColor: gas.color,
-        bubbleRate: gas.bubbleRate,
+        liquidColor: c.color,
       };
     },
   },
