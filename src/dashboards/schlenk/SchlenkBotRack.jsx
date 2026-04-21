@@ -1,5 +1,5 @@
 import React from 'react';
-import GlasswareClip from './GlasswareClip.jsx';
+import GlasswareRender from './GlasswareRender.jsx';
 import { BOT_GLASSWARE } from './serviceGlassware.js';
 import { getElementColor } from './elementColors.js';
 import { ZONES } from './zoneLayout.js';
@@ -32,7 +32,7 @@ export default function SchlenkBotRack({ bots = [], onBotClick = () => {} }) {
             onClick={() => onBotClick(bot)}
             style={{ cursor: 'pointer' }}
           >
-            <GlasswareClip
+            <GlasswareRender
               shape={BOT_GLASSWARE}
               width={tubeW}
               height={tubeH}
@@ -66,7 +66,7 @@ export default function SchlenkBotRack({ bots = [], onBotClick = () => {} }) {
               >
                 {(bot.name || '').slice(0, 8).toUpperCase()}
               </text>
-            </GlasswareClip>
+            </GlasswareRender>
           </g>
         );
       })}

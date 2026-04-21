@@ -1,5 +1,5 @@
 import React from 'react';
-import GlasswareClip from './GlasswareClip.jsx';
+import GlasswareRender from './GlasswareRender.jsx';
 import { getServiceGlassware } from './serviceGlassware.js';
 import { getElementColor } from './elementColors.js';
 import { getShape } from './glasswareRegistry.js';
@@ -33,7 +33,7 @@ export default function SchlenkCard({ element, x = 0, y = 0, size = 'sm', loadPe
 
   return (
     <g transform={`translate(${x - w / 2}, ${y - h / 2})`} onClick={onClick} style={{ cursor: 'pointer' }} className={tierClass}>
-      <GlasswareClip
+      <GlasswareRender
         shape={shapeId}
         width={w}
         height={h}
@@ -67,7 +67,7 @@ export default function SchlenkCard({ element, x = 0, y = 0, size = 'sm', loadPe
             {(element.service || element.name || '').toUpperCase().slice(0, 10)}
           </text>
         )}
-      </GlasswareClip>
+      </GlasswareRender>
     </g>
   );
 }
