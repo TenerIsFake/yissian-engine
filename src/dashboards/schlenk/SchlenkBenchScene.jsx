@@ -1,12 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import SchlenkManifold from './SchlenkManifold.jsx';
 import SchlenkCard from './SchlenkCard.jsx';
 import SchlenkBotRack from './SchlenkBotRack.jsx';
 import SchlenkTubing from './SchlenkTubing.jsx';
+import SchlenkDetailPanel from './SchlenkDetailPanel.jsx';
 import { SCENE_W, SCENE_H, ZONES, listZones } from './zoneLayout.js';
 import { SERVICE_TO_ZONE, groupServicesByZone, positionForService } from './serviceLayout.js';
 
-// Card size per zone (tuned for 1000x660 viewBox)
 const ZONE_CARD_SIZE = {
   MEDIA: 'xs',
   LIBRARY: 'md',
@@ -15,7 +15,6 @@ const ZONE_CARD_SIZE = {
   TOOLS: 'xs',
 };
 
-// Override for specific service heroes
 const SERVICE_SIZE_OVERRIDE = {
   plex: 'md',
   overseerr: 'sm',
@@ -33,23 +32,24 @@ const ZONE_TINTS = {
   BOTS:     { fill: 'rgba(192,115,168,0.06)', stroke: '#C073A8' },
 };
 
-/**
- * SCHLENK top-level bench scene (Sprint 4).
- * Renders manifold + 6 zone rects + tubing + glassware cards + NMR bot rack.
- */
 export default function SchlenkBenchScene(props) {
   const elements = props.elements || props.services || props.allElements || [];
   const statsMap = props.statsMap || {};
-  const onClick = props.onElementClick || (() => {});
+  const externalOnClick = props.onElementClick || (() => {});
 
-  // Partition elements: main services vs bots (anything not in SERVICE_TO_ZONE is a bot)
+  // Local selection for the inline detail panel overlay
+  const [selected, setSelected] = useState(null);
+
+  const handleClick = (element) => {
+    setSelected(element);
+    externalOnClick(element); // preserve any app-level handler
+  };
+
   const main = elements.filter(el => el.id && SERVICE_TO_ZONE[el.id]);
   const bots = elements.filter(el => !el.id || !SERVICE_TO_ZONE[el.id]);
 
-  // Group main services by zone + compute each service's position
   const grouped = groupServicesByZone(main.map(el => el.id));
 
-  // Build positioned cards and tubing inputs
   const positionedCards = [];
   const zoneTubingInput = {};
   for (const [zoneKey, svcs] of Object.entries(grouped)) {
@@ -66,7 +66,7 @@ export default function SchlenkBenchScene(props) {
   }
 
   return (
-    <div style={{ width: '100%', overflow: 'auto' }}>
+    <div style={{ width: '100%', position: 'relative' }}>
       <svg
         viewBox={`0 0 ${SCENE_W} ${SCENE_H}`}
         preserveAspectRatio="xMidYMin meet"
@@ -80,45 +80,25 @@ export default function SchlenkBenchScene(props) {
           borderRadius: 6,
         }}
       >
-        {/* Manifold at top */}
         <SchlenkManifold statsMap={statsMap} />
 
-        {/* Zone rectangles */}
         {listZones().map(([zoneKey, zone]) => {
           const tint = ZONE_TINTS[zoneKey];
           return (
             <g key={zoneKey}>
-              <rect
-                x={zone.x}
-                y={zone.y}
-                width={zone.w}
-                height={zone.h}
-                rx="4"
-                fill={tint.fill}
-                stroke={tint.stroke}
-                strokeWidth="1"
-                strokeDasharray="3 3"
-              />
-              <text
-                x={zone.x + 8}
-                y={zone.y + zone.h - 6}
-                fontFamily="monospace"
-                fontSize="9"
-                fill={tint.stroke}
-                letterSpacing="0.15em"
-                opacity="0.7"
-                pointerEvents="none"
-              >
+              <rect x={zone.x} y={zone.y} width={zone.w} height={zone.h} rx="4"
+                    fill={tint.fill} stroke={tint.stroke} strokeWidth="1" strokeDasharray="3 3" />
+              <text x={zone.x + 8} y={zone.y + zone.h - 6}
+                    fontFamily="monospace" fontSize="9" fill={tint.stroke}
+                    letterSpacing="0.15em" opacity="0.7" pointerEvents="none">
                 {zone.label}
               </text>
             </g>
           );
         })}
 
-        {/* Tubing — rendered BELOW cards so cards sit on top */}
         <SchlenkTubing zoneCards={zoneTubingInput} />
 
-        {/* Service cards */}
         {positionedCards.map(({ svcId, el, x, y, size }) => (
           <SchlenkCard
             key={svcId}
@@ -127,13 +107,30 @@ export default function SchlenkBenchScene(props) {
             y={y}
             size={size}
             loadPercent={statsMap[svcId]?.level ?? 50}
-            onClick={() => onClick(el)}
+            onClick={() => handleClick(el)}
           />
         ))}
 
-        {/* BOTS rack — rendered inside the BOTS zone */}
-        <SchlenkBotRack bots={bots} onBotClick={onClick} />
+        <SchlenkBotRack bots={bots} onBotClick={handleClick} />
       </svg>
+
+      {/* Detail panel overlay — opens on card/bot click */}
+      {selected && (
+        <div style={{
+          position: 'absolute',
+          top: 40,
+          right: 24,
+          zIndex: 20,
+          boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
+        }}>
+          <SchlenkDetailPanel
+            element={selected}
+            stats={statsMap[selected.id] || {}}
+            allElements={elements}
+            onClose={() => setSelected(null)}
+          />
+        </div>
+      )}
     </div>
   );
 }
