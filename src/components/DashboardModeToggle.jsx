@@ -22,6 +22,7 @@ const MODES = [
   { id: 'GLOBE',    icon: '⊕',  label: 'GLOBE'    },
   { id: 'FORGE',    icon: '⚒',  label: 'FORGE'    },
   { id: 'OCEAN',    icon: '≋',  label: 'OCEAN'    },
+  { id: 'SCHLENK',  icon: '⚗',  label: 'SCHLENK'  },
 ];
 
 const DashboardModeToggle = ({ mode, setMode }) => {
