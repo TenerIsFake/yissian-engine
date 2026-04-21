@@ -33,29 +33,60 @@ const ZONE_TINTS = {
 };
 
 export default function SchlenkBenchScene(props) {
-  const elements = props.elements || props.services || props.allElements || [];
-  const statsMap = props.statsMap || {};
-  const externalOnClick = props.onElementClick || (() => {});
-
   // Local selection for the inline detail panel overlay
   const [selected, setSelected] = useState(null);
+
+  // ServicesWidget passes elementRegistry (47 service objects). Fall back to
+  // allElements (118 periodic-table tuples) only if elementRegistry absent.
+  const elementRegistry = props.elementRegistry || [];
+  const allElements = props.allElements || [];
+  const elements = elementRegistry.length ? elementRegistry : allElements;
+  const statsMap = props.statsMap || {};
+  const externalOnClick = props.onElementClick || (() => {});
 
   const handleClick = (element) => {
     setSelected(element);
     externalOnClick(element); // preserve any app-level handler
   };
 
-  const main = elements.filter(el => el.id && SERVICE_TO_ZONE[el.id]);
-  const bots = elements.filter(el => !el.id || !SERVICE_TO_ZONE[el.id]);
+  // Partition: services with an assigned zone vs bots (BOTS zone or unassigned)
+  const zoneOf = (el) => el.zone || SERVICE_TO_ZONE[el.id] || null;
+  const main = elements.filter(el => {
+    const z = zoneOf(el);
+    return z && z !== 'BOTS';
+  });
+  const bots = elements.filter(el => zoneOf(el) === 'BOTS');
 
-  const grouped = groupServicesByZone(main.map(el => el.id));
+  // Group main services by their zone field (direct from elementRegistry)
+  const grouped = {};
+  for (const el of main) {
+    const z = zoneOf(el);
+    if (!grouped[z]) grouped[z] = [];
+    grouped[z].push(el.id);
+  }
+
+  // Inline position helper — uses zoneLayout ZONES directly for any zone
+  function posInZone(zoneKey, i, total) {
+    const zone = ZONES[zoneKey];
+    if (!zone) return null;
+    const cols = Math.ceil(Math.sqrt(total));
+    const rows = Math.ceil(total / cols);
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const cellW = zone.w / cols;
+    const cellH = zone.h / rows;
+    return {
+      x: zone.x + col * cellW + cellW / 2,
+      y: zone.y + row * cellH + cellH / 2,
+    };
+  }
 
   const positionedCards = [];
   const zoneTubingInput = {};
   for (const [zoneKey, svcs] of Object.entries(grouped)) {
     zoneTubingInput[zoneKey] = [];
     svcs.forEach((svcId, i) => {
-      const pos = positionForService(svcId, i, svcs.length);
+      const pos = posInZone(zoneKey, i, svcs.length);
       if (!pos) return;
       const el = main.find(e => e.id === svcId);
       const size = SERVICE_SIZE_OVERRIDE[svcId] || ZONE_CARD_SIZE[zoneKey] || 'sm';
