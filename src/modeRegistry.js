@@ -1252,17 +1252,20 @@ const MODE_REGISTRY = {
     ServerStorageDiagram: ReagentBottle,
     MediaStorageDiagram: SolventReservoir,
     SpeedtestDiagram: PiraniTrace,
-    detailTransform: (element) => ({
-      title: element.name.toUpperCase(),
-      subtitle: `Z = ${element.z} ◆ under ${getElementGas(element.symbol).label}`,
-      categoryLabel: (CATEGORY_LABELS[element.cat] || element.cat).toUpperCase(),
-      metadata: [
-        { label: 'ELECTRON_CONFIGURATION', value: element.electronConfig },
-        { label: 'GAS_ATMOSPHERE', value: getElementGas(element.symbol).label },
-      ],
-      statusLabels: ['INERT', 'BUBBLING', 'REFLUX', 'BUMPING'],
-      serviceLinkColor: getElementGas(element.symbol).color,
-    }),
+    detailTransform: (element) => {
+      const gas = getElementGas(element.symbol);
+      return {
+        title: element.name.toUpperCase(),
+        subtitle: `Z = ${element.z} ◆ under ${gas.label}`,
+        categoryLabel: (CATEGORY_LABELS[element.cat] || element.cat).toUpperCase(),
+        metadata: [
+          { label: 'ELECTRON_CONFIGURATION', value: element.electronConfig },
+          { label: 'GAS_ATMOSPHERE', value: gas.label },
+        ],
+        statusLabels: ['INERT', 'BUBBLING', 'REFLUX', 'BUMPING'],
+        serviceLinkColor: gas.color,
+      };
+    },
     cardTransform: (element) => {
       const gas = getElementGas(element.symbol);
       return {
