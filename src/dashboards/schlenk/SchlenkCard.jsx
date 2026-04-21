@@ -1,5 +1,6 @@
 import React from 'react';
 import GlasswareRender from './GlasswareRender.jsx';
+import CardTierOverlay from './CardTierOverlay.jsx';
 import { getServiceGlassware } from './serviceGlassware.js';
 import { getElementColor } from './elementColors.js';
 import { getShape } from './glasswareRegistry.js';
@@ -13,13 +14,13 @@ const SIZE_MAP = {
   xxs: { w: 24, h: 36 },
 };
 
-function getTierClass(loadPercent) {
+function getTierKey(loadPercent) {
   const p = Math.max(0, Math.min(100, Number(loadPercent) || 0));
-  if (p <= 20) return 'schlenk-card-t1';
-  if (p <= 45) return 'schlenk-card-t2';
-  if (p <= 70) return 'schlenk-card-t3';
-  if (p <= 90) return 'schlenk-card-t4';
-  return 'schlenk-card-t5';
+  if (p <= 20) return 't1';
+  if (p <= 45) return 't2';
+  if (p <= 70) return 't3';
+  if (p <= 90) return 't4';
+  return 't5';
 }
 
 export default function SchlenkCard({ element, x = 0, y = 0, size = 'sm', loadPercent = 50, onClick }) {
@@ -29,10 +30,10 @@ export default function SchlenkCard({ element, x = 0, y = 0, size = 'sm', loadPe
   const shape = getShape(shapeId);
   const { w, h } = SIZE_MAP[size] || SIZE_MAP.sm;
   const textY = shape ? (shape.liquidTop + shape.liquidBottom) / 2 : 60;
-  const tierClass = getTierClass(loadPercent);
+  const tier = getTierKey(loadPercent);
 
   return (
-    <g transform={`translate(${x - w / 2}, ${y - h / 2})`} onClick={onClick} style={{ cursor: 'pointer' }} className={tierClass}>
+    <g transform={`translate(${x - w / 2}, ${y - h / 2})`} onClick={onClick} style={{ cursor: 'pointer' }}>
       <GlasswareRender
         shape={shapeId}
         width={w}
@@ -67,6 +68,7 @@ export default function SchlenkCard({ element, x = 0, y = 0, size = 'sm', loadPe
             {(element.service || element.name || '').toUpperCase().slice(0, 10)}
           </text>
         )}
+        <CardTierOverlay tier={tier} shape={shape} fillColor={colorEntry.color} />
       </GlasswareRender>
     </g>
   );
