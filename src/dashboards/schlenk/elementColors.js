@@ -37,6 +37,26 @@ export const ELEMENT_COLORS = {
   S:  { color: '#E0C432', label: 'S',  compound: 'S₈ rhombic (sulfur yellow)' },
   Cl: { color: '#C0D840', label: 'Cl', compound: 'Cl₂ gas (yellow-green)' },
   Ar: { color: '#B08BE8', label: 'Ar', compound: 'Ar discharge (argon lilac)' },
+
+  // ─── Period 4 — s-block flames + d-block aqueous ions + p-block ───
+  K:  { color: '#9A6BCF', label: 'K',  compound: 'K flame (pale violet)' },
+  Ca: { color: '#E85838', label: 'Ca', compound: 'Ca flame (brick red)' },
+  Sc: { color: '#A0A8B0', label: 'Sc', compound: 'Sc³⁺ (pale)' },
+  Ti: { color: '#C0C8D0', label: 'Ti', compound: 'TiO₂ (titanium white)' },
+  V:  { color: '#6A4A8C', label: 'V',  compound: 'V²⁺ (violet)' },
+  Cr: { color: '#2A8A5A', label: 'Cr', compound: 'Cr³⁺ (green)' },
+  Mn: { color: '#8B2AA8', label: 'Mn', compound: 'MnO₄⁻ (permanganate purple)' },
+  Fe: { color: '#C03A22', label: 'Fe', compound: 'Fe(SCN) (blood red)' },
+  Co: { color: '#E8709A', label: 'Co', compound: 'Co²⁺ aq (pink)' },
+  Ni: { color: '#3AA865', label: 'Ni', compound: 'Ni²⁺ aq (green)' },
+  Cu: { color: '#3B97D4', label: 'Cu', compound: 'CuSO₄·5H₂O (azure)' },
+  Zn: { color: '#B8BEC8', label: 'Zn', compound: 'Zn metal (bluish-white)' },
+  Ga: { color: '#C8D0D8', label: 'Ga', compound: 'Ga metal (silvery)' },
+  Ge: { color: '#9AA0A8', label: 'Ge', compound: 'Ge metalloid (grey-white)' },
+  As: { color: '#8A7050', label: 'As', compound: 'As₂O₃ / arsenic grey' },
+  Se: { color: '#A83722', label: 'Se', compound: 'Se red allotrope' },
+  Br: { color: '#8B3A1E', label: 'Br', compound: 'Br₂ liquid (red-brown)' },
+  Kr: { color: '#B8D8E8', label: 'Kr', compound: 'Kr discharge (whitish)' },
 };
 
 /**
