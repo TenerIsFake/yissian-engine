@@ -1,10 +1,29 @@
 import React from 'react';
 import SchlenkManifold from './SchlenkManifold.jsx';
-import { SCENE_W, SCENE_H, ZONES, PORT_X, listZones } from './zoneLayout.js';
+import SchlenkCard from './SchlenkCard.jsx';
+import SchlenkBotRack from './SchlenkBotRack.jsx';
+import SchlenkTubing from './SchlenkTubing.jsx';
+import { SCENE_W, SCENE_H, ZONES, listZones } from './zoneLayout.js';
 import { SERVICE_TO_ZONE, groupServicesByZone, positionForService } from './serviceLayout.js';
-import { getElementColor } from './elementColors.js';
 
-// Zone background colors (subtle tints per zone role)
+// Card size per zone (tuned for 1000x660 viewBox)
+const ZONE_CARD_SIZE = {
+  MEDIA: 'xs',
+  LIBRARY: 'md',
+  PIPELINE: 'sm',
+  INFRA: 'xs',
+  TOOLS: 'xs',
+};
+
+// Override for specific service heroes
+const SERVICE_SIZE_OVERRIDE = {
+  plex: 'md',
+  overseerr: 'sm',
+  radarr: 'sm',
+};
+
+const SIZE_MAP_H = { lg: 96, md: 78, sm: 66, xs: 54, xxs: 36 };
+
 const ZONE_TINTS = {
   MEDIA:    { fill: 'rgba(79,184,212,0.05)',  stroke: '#4FB8D4' },
   LIBRARY:  { fill: 'rgba(79,184,212,0.04)',  stroke: '#4FB8D4' },
@@ -15,22 +34,36 @@ const ZONE_TINTS = {
 };
 
 /**
- * SCHLENK top-level bench scene. Replaces PeriodicTableGrid for SCHLENK mode.
- *
- * Props — kept flexible since modeRegistry Grid is called with various prop
- * shapes by the App-level renderer. We adapt to whatever arrives:
- *   elements / services: array of element-registry entries
- *   statsMap: { [serviceId]: { level, online, ... } }
- *   onElementClick: click handler (element) => void
+ * SCHLENK top-level bench scene (Sprint 4).
+ * Renders manifold + 6 zone rects + tubing + glassware cards + NMR bot rack.
  */
 export default function SchlenkBenchScene(props) {
   const elements = props.elements || props.services || props.allElements || [];
   const statsMap = props.statsMap || {};
   const onClick = props.onElementClick || (() => {});
 
-  // Group services by zone for grid positioning within each zone
-  const serviceIds = elements.map(el => el.id).filter(Boolean);
-  const grouped = groupServicesByZone(serviceIds);
+  // Partition elements: main services vs bots (anything not in SERVICE_TO_ZONE is a bot)
+  const main = elements.filter(el => el.id && SERVICE_TO_ZONE[el.id]);
+  const bots = elements.filter(el => !el.id || !SERVICE_TO_ZONE[el.id]);
+
+  // Group main services by zone + compute each service's position
+  const grouped = groupServicesByZone(main.map(el => el.id));
+
+  // Build positioned cards and tubing inputs
+  const positionedCards = [];
+  const zoneTubingInput = {};
+  for (const [zoneKey, svcs] of Object.entries(grouped)) {
+    zoneTubingInput[zoneKey] = [];
+    svcs.forEach((svcId, i) => {
+      const pos = positionForService(svcId, i, svcs.length);
+      if (!pos) return;
+      const el = main.find(e => e.id === svcId);
+      const size = SERVICE_SIZE_OVERRIDE[svcId] || ZONE_CARD_SIZE[zoneKey] || 'sm';
+      const cardH = SIZE_MAP_H[size] || 66;
+      positionedCards.push({ svcId, el, x: pos.x, y: pos.y, size, cardH, zoneKey });
+      zoneTubingInput[zoneKey].push({ id: svcId, x: pos.x, y: pos.y, cardH });
+    });
+  }
 
   return (
     <div style={{ width: '100%', overflow: 'auto' }}>
@@ -50,7 +83,7 @@ export default function SchlenkBenchScene(props) {
         {/* Manifold at top */}
         <SchlenkManifold statsMap={statsMap} />
 
-        {/* 6 zone rectangles with dashed borders */}
+        {/* Zone rectangles */}
         {listZones().map(([zoneKey, zone]) => {
           const tint = ZONE_TINTS[zoneKey];
           return (
@@ -66,7 +99,6 @@ export default function SchlenkBenchScene(props) {
                 strokeWidth="1"
                 strokeDasharray="3 3"
               />
-              {/* Zone label (bottom-left corner) */}
               <text
                 x={zone.x + 8}
                 y={zone.y + zone.h - 6}
@@ -75,6 +107,7 @@ export default function SchlenkBenchScene(props) {
                 fill={tint.stroke}
                 letterSpacing="0.15em"
                 opacity="0.7"
+                pointerEvents="none"
               >
                 {zone.label}
               </text>
@@ -82,50 +115,24 @@ export default function SchlenkBenchScene(props) {
           );
         })}
 
-        {/* Tubing: vertical drop from each port into its zone */}
-        {listZones().map(([zoneKey, zone]) => {
-          const x = PORT_X[zone.portId];
-          if (x === undefined) return null;
-          return (
-            <line
-              key={`tubing-${zoneKey}`}
-              x1={x}
-              y1="72"
-              x2={x}
-              y2={zone.y}
-              stroke="#4FB8D4"
-              strokeWidth="2"
-              opacity="0.5"
-            />
-          );
-        })}
+        {/* Tubing — rendered BELOW cards so cards sit on top */}
+        <SchlenkTubing zoneCards={zoneTubingInput} />
 
-        {/* Placeholder dots at each service position (Sprint 4 replaces with SchlenkCard) */}
-        {Object.entries(grouped).flatMap(([zoneKey, svcs]) =>
-          svcs.map((svc, i) => {
-            const pos = positionForService(svc, i, svcs.length);
-            if (!pos) return null;
-            const el = elements.find(e => e.id === svc);
-            const color = getElementColor(el?.symbol || '').color;
-            return (
-              <g key={`svc-${svc}`} onClick={() => onClick(el)} style={{ cursor: 'pointer' }}>
-                <circle cx={pos.x} cy={pos.y} r="12" fill={color} opacity="0.6" stroke="#4FB8D4" strokeWidth="1" />
-                <text
-                  x={pos.x}
-                  y={pos.y + 3}
-                  textAnchor="middle"
-                  fontFamily="monospace"
-                  fontSize="9"
-                  fill="#fff"
-                  fontWeight="bold"
-                  pointerEvents="none"
-                >
-                  {el?.symbol || '?'}
-                </text>
-              </g>
-            );
-          })
-        )}
+        {/* Service cards */}
+        {positionedCards.map(({ svcId, el, x, y, size }) => (
+          <SchlenkCard
+            key={svcId}
+            element={el}
+            x={x}
+            y={y}
+            size={size}
+            loadPercent={statsMap[svcId]?.level ?? 50}
+            onClick={() => onClick(el)}
+          />
+        ))}
+
+        {/* BOTS rack — rendered inside the BOTS zone */}
+        <SchlenkBotRack bots={bots} onBotClick={onClick} />
       </svg>
     </div>
   );
