@@ -1,0 +1,44 @@
+/* SCHLENK per-card tier animations
+ * Tier is derived from loadPercent:
+ *   0-20   → t1 (cold pump — slow breath)
+ *   21-45  → t2 (static bench — no motion)
+ *   46-70  → t3 (argon flow — subtle liquid shimmer)
+ *   71-90  → t4 (reflux — stronger liquid pulse + warm glow)
+ *   91-100 → t5 (exotherm — urgent glow + flicker)
+ *
+ * Applied as className on the <g> card group in SchlenkCard.jsx.
+ * Purely CSS — no JS animation loops. Honors prefers-reduced-motion.
+ */
+
+@keyframes schlenkT1Breath {
+  0%, 100% { opacity: 0.75; }
+  50%      { opacity: 1;    }
+}
+@keyframes schlenkT3Shimmer {
+  0%, 100% { filter: none; }
+  50%      { filter: drop-shadow(0 0 3px rgba(180, 127, 232, 0.6)); }
+}
+@keyframes schlenkT4Reflux {
+  0%, 100% { filter: drop-shadow(0 0 2px #D48860); }
+  50%      { filter: drop-shadow(0 0 8px #E8A060); }
+}
+@keyframes schlenkT5Exotherm {
+  0%, 100% { filter: drop-shadow(0 0 3px #E84A28); }
+  50%      { filter: drop-shadow(0 0 14px #F08030) brightness(1.18); }
+}
+
+.schlenk-card-t1 { animation: schlenkT1Breath 4s ease-in-out infinite; }
+.schlenk-card-t2 { /* no animation — static */ }
+.schlenk-card-t3 { animation: schlenkT3Shimmer 2s ease-in-out infinite; }
+.schlenk-card-t4 { animation: schlenkT4Reflux 1.2s ease-in-out infinite alternate; }
+.schlenk-card-t5 { animation: schlenkT5Exotherm 0.6s ease-in-out infinite alternate; }
+
+/* Reduced motion: freeze all tier animations */
+@media (prefers-reduced-motion: reduce) {
+  .schlenk-card-t1,
+  .schlenk-card-t3,
+  .schlenk-card-t4,
+  .schlenk-card-t5 {
+    animation: none;
+  }
+}
