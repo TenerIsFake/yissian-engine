@@ -57,6 +57,26 @@ export const ELEMENT_COLORS = {
   Se: { color: '#A83722', label: 'Se', compound: 'Se red allotrope' },
   Br: { color: '#8B3A1E', label: 'Br', compound: 'Br₂ liquid (red-brown)' },
   Kr: { color: '#B8D8E8', label: 'Kr', compound: 'Kr discharge (whitish)' },
+
+  // ─── Period 5 — s-block flames + d-block metals + p-block ───
+  Rb: { color: '#D868B8', label: 'Rb', compound: 'Rb flame (red-violet)' },
+  Sr: { color: '#E02828', label: 'Sr', compound: 'Sr flame (crimson red)' },
+  Y:  { color: '#C0C8D0', label: 'Y',  compound: 'Y metal (silver-white)' },
+  Zr: { color: '#B0B8C0', label: 'Zr', compound: 'Zr metal (grey)' },
+  Nb: { color: '#A8B0B8', label: 'Nb', compound: 'Nb metal (blue-grey)' },
+  Mo: { color: '#B8C0C8', label: 'Mo', compound: 'Mo metal (grey)' },
+  Tc: { color: '#A8B0B0', label: 'Tc', compound: 'Tc metal (silvery, radioactive)' },
+  Ru: { color: '#C0C8C8', label: 'Ru', compound: 'Ru metal (silvery)' },
+  Rh: { color: '#D0D8D8', label: 'Rh', compound: 'Rh metal (pale silver)' },
+  Pd: { color: '#D8D8D8', label: 'Pd', compound: 'Pd metal (silvery-white)' },
+  Ag: { color: '#E0E0E0', label: 'Ag', compound: 'Ag metal (silver)' },
+  Cd: { color: '#B8C8D0', label: 'Cd', compound: 'Cd metal (bluish-white)' },
+  In: { color: '#C8D0D0', label: 'In', compound: 'In metal (silvery)' },
+  Sn: { color: '#C0C0B8', label: 'Sn', compound: 'Sn metal (white tin)' },
+  Sb: { color: '#A0A8B0', label: 'Sb', compound: 'Sb metal (silver-grey)' },
+  Te: { color: '#8090A0', label: 'Te', compound: 'Te metal (silvery-white)' },
+  I:  { color: '#6A2A90', label: 'I',  compound: 'I₂ vapor (violet)' },
+  Xe: { color: '#8BB4E8', label: 'Xe', compound: 'Xe discharge (blue-white)' },
 };
 
 /**
