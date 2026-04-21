@@ -24,12 +24,24 @@ import { rbf1NeckShape } from './glassware/rbf1Neck.jsx';
 import { rbf2NeckShape } from './glassware/rbf2Neck.jsx';
 import { rbf3NeckShape } from './glassware/rbf3Neck.jsx';
 import { schlenkSidearmShape } from './glassware/schlenkSidearm.jsx';
+import { longSchlenkShape } from './glassware/longSchlenk.jsx';
+import { fischerPorterShape } from './glassware/fischerPorter.jsx';
+import { pearFlaskShape } from './glassware/pearFlask.jsx';
+import { jYoungShape } from './glassware/jYoung.jsx';
+import { rotovapBumpShape } from './glassware/rotovapBump.jsx';
+import { kjeldahlShape } from './glassware/kjeldahl.jsx';
 
 const RENDERERS = {
   'rbf-1neck': rbf1NeckShape,
   'rbf-2neck': rbf2NeckShape,
   'rbf-3neck': rbf3NeckShape,
   'schlenk-sidearm': schlenkSidearmShape,
+  'long-schlenk': longSchlenkShape,
+  'fischer-porter': fischerPorterShape,
+  'pear-flask': pearFlaskShape,
+  'j-young': jYoungShape,
+  'rotovap-bump': rotovapBumpShape,
+  'kjeldahl': kjeldahlShape,
 };
 
 function hexToRgba(hex, a) {
