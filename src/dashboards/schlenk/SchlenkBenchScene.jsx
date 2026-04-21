@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import SchlenkManifold from './SchlenkManifold.jsx';
 import SchlenkCard from './SchlenkCard.jsx';
 import SchlenkBotRack from './SchlenkBotRack.jsx';
-import SchlenkTubing from './SchlenkTubing.jsx';
 import SchlenkDetailPanel from './SchlenkDetailPanel.jsx';
-import { SCENE_W, SCENE_H, ZONES, listZones } from './zoneLayout.js';
+import { SCENE_W, SCENE_H, ZONES, listZones, PORT_X } from './zoneLayout.js';
 import { SERVICE_TO_ZONE, groupServicesByZone, positionForService } from './serviceLayout.js';
 
 const ZONE_CARD_SIZE = {
@@ -82,9 +81,7 @@ export default function SchlenkBenchScene(props) {
   }
 
   const positionedCards = [];
-  const zoneTubingInput = {};
   for (const [zoneKey, svcs] of Object.entries(grouped)) {
-    zoneTubingInput[zoneKey] = [];
     svcs.forEach((svcId, i) => {
       const pos = posInZone(zoneKey, i, svcs.length);
       if (!pos) return;
@@ -92,7 +89,6 @@ export default function SchlenkBenchScene(props) {
       const size = SERVICE_SIZE_OVERRIDE[svcId] || ZONE_CARD_SIZE[zoneKey] || 'sm';
       const cardH = SIZE_MAP_H[size] || 66;
       positionedCards.push({ svcId, el, x: pos.x, y: pos.y, size, cardH, zoneKey });
-      zoneTubingInput[zoneKey].push({ id: svcId, x: pos.x, y: pos.y, cardH });
     });
   }
 
@@ -113,6 +109,23 @@ export default function SchlenkBenchScene(props) {
       >
         <SchlenkManifold statsMap={statsMap} />
 
+        {/* Port stubs: short cyan drop from each manifold port down to its zone top.
+            Does NOT route per-card — that caused tubing to cross through other flasks. */}
+        {listZones().map(([zoneKey, zone]) => {
+          const x = PORT_X[zone.portId];
+          if (x === undefined) return null;
+          return (
+            <g key={`port-stub-${zoneKey}`}>
+              {/* Glass tubing (double-stroke: outer cyan + inner pale highlight for depth) */}
+              <line x1={x} y1="72" x2={x} y2={zone.y} stroke="#4FB8D4" strokeWidth="2.4" opacity="0.5" />
+              <line x1={x} y1="72" x2={x} y2={zone.y} stroke="rgba(192,212,219,0.35)" strokeWidth="0.8" />
+              {/* Ground-glass joint nub where the stub meets the zone boundary */}
+              <rect x={x - 4} y={zone.y - 4} width="8" height="6" fill="rgba(192,212,219,0.35)" stroke="#4FB8D4" strokeWidth="0.6" />
+              <line x1={x - 4} y1={zone.y - 1} x2={x + 4} y2={zone.y - 1} stroke="rgba(192,212,219,0.7)" strokeWidth="0.3" />
+            </g>
+          );
+        })}
+
         {listZones().map(([zoneKey, zone]) => {
           const tint = ZONE_TINTS[zoneKey];
           return (
@@ -127,8 +140,6 @@ export default function SchlenkBenchScene(props) {
             </g>
           );
         })}
-
-        <SchlenkTubing zoneCards={zoneTubingInput} />
 
         {positionedCards.map(({ svcId, el, x, y, size }) => (
           <SchlenkCard
