@@ -117,6 +117,44 @@ export const ELEMENT_COLORS = {
   Po: { color: '#808878', label: 'Po', compound: 'Po metal (silver-grey)' },
   At: { color: '#4A1050', label: 'At', compound: 'At extrapolated (deep violet)' },
   Rn: { color: '#D45050', label: 'Rn', compound: 'Rn extrapolated (deep red)' },
+
+  // ─── Period 7 s-block ───
+  Fr: { color: '#8A2A30', label: 'Fr', compound: 'Fr extrapolated (deep red)' },
+  Ra: { color: '#E04848', label: 'Ra', compound: 'Ra flame (crimson)' },
+
+  // ─── Actinides (An³⁺ oxidation-state-dependent, uranyl anchors) ───
+  Ac: { color: '#A0C8D8', label: 'Ac', compound: 'Ac³⁺ (pale blue glow)' },
+  Th: { color: '#E8E8E8', label: 'Th', compound: 'Th metal (silver)' },
+  Pa: { color: '#D8D8D8', label: 'Pa', compound: 'Pa metal (silver-grey)' },
+  U:  { color: '#C8DB3C', label: 'U',  compound: 'UO₂²⁺ uranyl (fluorescent yellow-green)' },
+  Np: { color: '#D8A870', label: 'Np', compound: 'Np (olive-tan)' },
+  Pu: { color: '#7A4A8C', label: 'Pu', compound: 'Pu (purple)' },
+  Am: { color: '#E0506A', label: 'Am', compound: 'Am (red)' },
+  Cm: { color: '#B8E0C0', label: 'Cm', compound: 'Cm (pale green)' },
+  Bk: { color: '#D8D870', label: 'Bk', compound: 'Bk (yellow)' },
+  Cf: { color: '#80D48A', label: 'Cf', compound: 'Cf (fluorescent green)' },
+  Es: { color: '#D8B848', label: 'Es', compound: 'Es (yellow)' },
+  Fm: { color: '#8090A0', label: 'Fm', compound: 'Fm extrapolated (steel-grey)' },
+  Md: { color: '#8090A0', label: 'Md', compound: 'Md extrapolated (steel-grey)' },
+  No: { color: '#8090A0', label: 'No', compound: 'No extrapolated (steel-grey)' },
+  Lr: { color: '#8090A0', label: 'Lr', compound: 'Lr extrapolated (steel-grey)' },
+
+  // ─── Period 7 d-block + p-block (all extrapolated) ───
+  Rf: { color: '#8090A0', label: 'Rf', compound: 'Rf extrapolated (steel-grey)' },
+  Db: { color: '#8090A0', label: 'Db', compound: 'Db extrapolated (steel-grey)' },
+  Sg: { color: '#8090A0', label: 'Sg', compound: 'Sg extrapolated (steel-grey)' },
+  Bh: { color: '#8090A0', label: 'Bh', compound: 'Bh extrapolated (steel-grey)' },
+  Hs: { color: '#8090A0', label: 'Hs', compound: 'Hs extrapolated (steel-grey)' },
+  Mt: { color: '#8090A0', label: 'Mt', compound: 'Mt extrapolated (steel-grey)' },
+  Ds: { color: '#8090A0', label: 'Ds', compound: 'Ds extrapolated (steel-grey)' },
+  Rg: { color: '#8090A0', label: 'Rg', compound: 'Rg extrapolated (steel-grey)' },
+  Cn: { color: '#8090A0', label: 'Cn', compound: 'Cn extrapolated (steel-grey)' },
+  Nh: { color: '#8090A0', label: 'Nh', compound: 'Nh extrapolated (steel-grey)' },
+  Fl: { color: '#8090A0', label: 'Fl', compound: 'Fl extrapolated (steel-grey)' },
+  Mc: { color: '#8090A0', label: 'Mc', compound: 'Mc extrapolated (steel-grey)' },
+  Lv: { color: '#8090A0', label: 'Lv', compound: 'Lv extrapolated (steel-grey)' },
+  Ts: { color: '#8090A0', label: 'Ts', compound: 'Ts extrapolated (steel-grey)' },
+  Og: { color: '#8090A0', label: 'Og', compound: 'Og extrapolated (steel-grey)' },
 };
 
 /**
