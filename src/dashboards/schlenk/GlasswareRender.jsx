@@ -34,6 +34,11 @@ import { dimrothShape } from './glassware/dimroth.jsx';
 import { liebigShape } from './glassware/liebig.jsx';
 import { allihnShape } from './glassware/allihn.jsx';
 import { coldFingerShape } from './glassware/coldFinger.jsx';
+import { deanStarkShape } from './glassware/deanStark.jsx';
+import { soxhletShape } from './glassware/soxhlet.jsx';
+import { coldTrapShape } from './glassware/coldTrap.jsx';
+import { kugelrohrShape } from './glassware/kugelrohr.jsx';
+import { sublimationShape } from './glassware/sublimation.jsx';
 
 const RENDERERS = {
   'rbf-1neck': rbf1NeckShape,
@@ -50,6 +55,11 @@ const RENDERERS = {
   'liebig': liebigShape,
   'allihn': allihnShape,
   'cold-finger': coldFingerShape,
+  'dean-stark': deanStarkShape,
+  'soxhlet': soxhletShape,
+  'cold-trap': coldTrapShape,
+  'kugelrohr': kugelrohrShape,
+  'sublimation': sublimationShape,
 };
 
 function hexToRgba(hex, a) {
