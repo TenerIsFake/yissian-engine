@@ -80,6 +80,73 @@ export const SHAPES = {
     liquidTop: 58, liquidBottom: 116,
     sidearm: false,
   },
+
+  // ─── Condensers ───
+  'dimroth': {
+    viewBox: '0 0 70 140',
+    path: 'M 20 10 L 50 10 L 50 120 L 20 120 Z',
+    jointX: 35, jointY: 10,
+    liquidTop: 12, liquidBottom: 118,
+    sidearm: false,
+  },
+  'liebig': {
+    viewBox: '0 0 70 140',
+    path: 'M 20 10 L 50 10 L 50 120 L 20 120 Z',
+    jointX: 35, jointY: 10,
+    liquidTop: 12, liquidBottom: 118,
+    sidearm: false,
+  },
+  'allihn': {
+    viewBox: '0 0 70 140',
+    path: 'M 20 10 L 50 10 L 50 120 L 20 120 Z',
+    jointX: 35, jointY: 10,
+    liquidTop: 12, liquidBottom: 118,
+    sidearm: false,
+  },
+  'cold-finger': {
+    viewBox: '0 0 70 140',
+    path: 'M 18 14 L 52 14 L 52 104 C 52 120 18 120 18 104 Z',
+    jointX: 35, jointY: 14,
+    liquidTop: 20, liquidBottom: 115,
+    sidearm: false,
+  },
+
+  // ─── Distillation & Traps ───
+  'dean-stark': {
+    viewBox: '0 0 90 120',
+    path: 'M 40 6 L 40 30 L 22 40 L 22 82 L 40 90 L 40 100 C 40 114 62 114 62 100 L 62 90 L 80 82 L 80 40 L 62 30 L 62 6 Z',
+    jointX: 51, jointY: 6,
+    liquidTop: 45, liquidBottom: 112,
+    sidearm: true,
+  },
+  'soxhlet': {
+    viewBox: '0 0 80 140',
+    path: 'M 30 6 L 30 30 L 18 36 L 18 88 L 30 94 L 30 104 L 50 104 L 50 94 L 62 88 L 62 36 L 50 30 L 50 6 Z',
+    jointX: 40, jointY: 6,
+    liquidTop: 40, liquidBottom: 102,
+    sidearm: false,
+  },
+  'cold-trap': {
+    viewBox: '0 0 90 140',
+    path: 'M 10 30 L 10 118 C 10 130 80 130 80 118 L 80 30 Z',
+    jointX: 45, jointY: 30,
+    liquidTop: 40, liquidBottom: 124,
+    sidearm: true,
+  },
+  'kugelrohr': {
+    viewBox: '0 0 130 80',
+    path: 'M 6 40 A 14 14 0 1 1 34 40 A 14 14 0 1 1 62 40 A 14 14 0 1 1 90 40 A 14 14 0 1 1 118 40 A 14 14 0 1 1 126 40 L 126 42 A 14 14 0 1 1 90 42 A 14 14 0 1 1 62 42 A 14 14 0 1 1 34 42 A 14 14 0 1 1 6 40 Z',
+    jointX: 66, jointY: 26,
+    liquidTop: 30, liquidBottom: 52,
+    sidearm: false,
+  },
+  'sublimation': {
+    viewBox: '0 0 80 130',
+    path: 'M 14 20 L 14 108 C 14 120 66 120 66 108 L 66 20 Z',
+    jointX: 40, jointY: 20,
+    liquidTop: 28, liquidBottom: 114,
+    sidearm: false,
+  },
 };
 
 export function getShape(id) {
