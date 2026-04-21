@@ -37,6 +37,7 @@ const AquariumGrid = lazy(() => import('./dashboards/aquarium/AquariumGrid.jsx')
 const GardenGrid = lazy(() => import('./dashboards/garden/GardenGrid.jsx'));
 const BrewGrid = lazy(() => import('./dashboards/brew/BrewGrid.jsx'));
 const LibraryGrid = lazy(() => import('./dashboards/library/LibraryGrid.jsx'));
+const SchlenkGrid = lazy(() => import('./dashboards/schlenk/SchlenkGrid.jsx'));
 
 // ── Config objects (static — small, needed synchronously) ──
 import { STELLAR_LABELS, SPACE_OVERLAY } from './dashboards/space/spaceConfig.js';
@@ -68,6 +69,12 @@ import { AQUARIUM_LABELS, AQUARIUM_OVERLAY } from './dashboards/aquarium/aquariu
 import { GARDEN_LABELS, GARDEN_OVERLAY } from './dashboards/garden/gardenConfig.js';
 import { BREW_LABELS, BREW_OVERLAY } from './dashboards/brew/brewConfig.js';
 import { LIBRARY_LABELS, LIBRARY_OVERLAY } from './dashboards/library/libraryConfig.js';
+
+// ── SCHLENK-specific imports ──
+import ReagentBottle from './dashboards/schlenk/diagrams/ReagentBottle.jsx';
+import SolventReservoir from './dashboards/schlenk/diagrams/SolventReservoir.jsx';
+import PiraniTrace from './dashboards/schlenk/diagrams/PiraniTrace.jsx';
+import { getElementGas } from './dashboards/schlenk/elementGases.js';
 
 // ── Diagram components (lazy-loaded — rendered in SystemMetricsPanel per mode) ──
 const StellarCoreMonitor = lazy(() => import('./dashboards/space/StellarCoreMonitor.jsx'));
@@ -1196,6 +1203,77 @@ const MODE_REGISTRY = {
     cardTransform: makeCardTransform(LIBRARY_OVERLAY, {
       topLeftField: 'dewey', centerField: 'dewey', nameField: 'title', bottomField: 'section',
     }),
+  },
+  SCHLENK: {
+    Grid: SchlenkGrid,
+    labels: CATEGORY_LABELS,
+    tickerLabels: {
+      films: ['DISTILLATE ·', 'Fractions_Collected'],
+      series: ['FRACTIONS ·', 'Reaction_Series'],
+      music: ['CONDENSATE ·', 'Pure_Samples'],
+    },
+    logTitle: 'LAB_NOTEBOOK ◆ Bench_Log',
+    gridProps: 'chem',
+    sectionLabels: {
+      srv1: '◆ SRV-1 ◆ Reaction_Vessel',
+      storage: '◆ Storage ◆ Reagent_Inventory',
+      srv2: '◆ SRV-2 ◆ Distillation_Column',
+    },
+    glancesLabels: { cpu: 'THERMAL_LOAD', ram: 'HEADSPACE', netDown: 'DOWN_FLUX', netUp: 'UP_FLUX' },
+    storageLabels: { srv1: 'RBF_A', tv: 'RBF_B', movies: 'RBF_C', musicPhotos: 'RBF_D', srv2: 'COLUMN' },
+    widgetLabels: {
+      chat: '◆ BENCH_ASSISTANT ◆ Gemini_Chat',
+      lottery: '◆ LOTTERY ◆ Random_Draw',
+      stocks: '◆ MARKET ◆ Equities',
+      spotify: '◆ BENCH_RADIO ◆ Spotify',
+      dockerHealth: '◆ APPARATUS_STATE ◆ 7d',
+      quote: '◆ CATALYST_OF_THE_DAY ◆ ZenQuotes',
+      freshRss: '◆ LIT_FEED ◆ FreshRSS',
+      weather: '◆ ATMOSPHERE ◆ Open-Meteo',
+      vpnStatus: '◆ INERT_ATMOSPHERE ◆ Gluetun',
+      dnsLeak: '◆ LEAK_CHECK ◆ VPN_Integrity',
+      quickLaunch: '◆ Quick_Launch',
+      airQuality: '◆ FUME_HOOD ◆ AQI',
+      plexLibrary: '◆ LIBRARY ◆ Plex_Counts',
+      plexSessions: '◆ LIVE_SESSIONS ◆ Plex_Streams',
+      plexOnDeck: '◆ ON_DECK ◆ Queue',
+      cronMonitor: '◆ SCHEDULE ◆',
+      lanPresence: '◆ PRESENCE ◆',
+      onThisDay: '◆ CHEMISTRY_HISTORY ◆',
+    },
+    headerTitle: { main: 'SCHLENK_BENCH', accent: '.LAB' },
+    headerSubtitle: 'Bench {date} ◆ Schlenk-Line Homelab',
+    gridTitle: '◆ WORKING BENCH — LIVE REACTIONS ◆',
+    jablonskiLabels: { emission: 'FLUX ◆ DOWN', excitation: 'FLUX ◆ UP' },
+    CpuDiagram: CoordComplex,
+    RamDiagram: CoordComplex,
+    DownloadDiagram: JablonskiDiagram,
+    UploadDiagram: JablonskiDiagram,
+    ServerStorageDiagram: ReagentBottle,
+    MediaStorageDiagram: SolventReservoir,
+    SpeedtestDiagram: PiraniTrace,
+    detailTransform: (element) => ({
+      title: element.name.toUpperCase(),
+      subtitle: `Z = ${element.z} ◆ under ${getElementGas(element.symbol).label}`,
+      categoryLabel: (CATEGORY_LABELS[element.cat] || element.cat).toUpperCase(),
+      metadata: [
+        { label: 'ELECTRON_CONFIGURATION', value: element.electronConfig },
+        { label: 'GAS_ATMOSPHERE', value: getElementGas(element.symbol).label },
+      ],
+      statusLabels: ['INERT', 'BUBBLING', 'REFLUX', 'BUMPING'],
+      serviceLinkColor: getElementGas(element.symbol).color,
+    }),
+    cardTransform: (element) => {
+      const gas = getElementGas(element.symbol);
+      return {
+        topLeft: gas.label,
+        centerLabel: element.symbol,
+        displayName: element.service || element.name,
+        bottomLabel: element.mass,
+        liquidColor: gas.color,
+        bubbleRate: gas.bubbleRate,
+      };
+    },
   },
 };
 
