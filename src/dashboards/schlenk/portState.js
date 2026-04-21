@@ -27,6 +27,11 @@ export function computePortAngles(statsMap = {}) {
   // Map each port to an angle
   const portAngles = {};
   for (const [zoneKey, zone] of Object.entries(ZONES)) {
+    // BOTS zone has no aggregate health model — always render stopcock "up" (healthy) by default
+    if (zoneKey === 'BOTS') {
+      portAngles[zone.portId] = 0;
+      continue;
+    }
     const h = zoneHealth[zoneKey];
     if (!h || h.total === 0) {
       portAngles[zone.portId] = 90; // horizontal = unknown

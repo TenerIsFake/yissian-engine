@@ -7,6 +7,7 @@ import { SCENE_W, SCENE_H, ZONES, listZones } from './zoneLayout.js';
 import { SERVICE_TO_ZONE, groupServicesByZone, positionForService } from './serviceLayout.js';
 import { getServiceGlassware } from './serviceGlassware.js';
 import { getShape } from './glasswareRegistry.js';
+import { getTierFromStatus } from './tierFromStatus.js';
 
 const ZONE_CARD_SIZE = {
   MEDIA: 'xs',
@@ -155,11 +156,11 @@ export default function SchlenkBenchScene(props) {
         {/* Per-card glass connectors: a short ground-glass-joint stub at each card's
             top joint (or sidearm for flasks with one). Implies connection to the
             manifold above without drawing long tubing that would cross other flasks. */}
-        {positionedCards.map(({ svcId, el, x, y, size }) => {
+        {positionedCards.map(({ svcId, el, x, y, size, zoneKey }) => {
           const pt = getConnectorPoint(el, x, y, size);
-          // Stub extends UP 10px from the joint toward the manifold
-          const stubHeight = 10;
-          const stubTop = pt.connectY - stubHeight;
+          const zone = ZONES[zoneKey];
+          // Extend stub up to zone top (within card's column, no horizontal crossing)
+          const stubTop = zone ? zone.y : pt.connectY - 10;
           return (
             <g key={`connector-${svcId}`} opacity="0.75">
               {/* Glass tubing segment (double-stroke: outer borosilicate + inner sheen) */}
@@ -172,11 +173,16 @@ export default function SchlenkBenchScene(props) {
                     fill="rgba(192,212,219,0.5)" stroke="#4FB8D4" strokeWidth="0.6" />
               <line x1={pt.connectX - 4} y1={pt.connectY + 0.5} x2={pt.connectX + 4} y2={pt.connectY + 0.5}
                     stroke="rgba(192,212,219,0.8)" strokeWidth="0.3" />
+              {/* Ground-glass joint at the zone-top end (manifold-side connector) */}
+              <rect x={pt.connectX - 4} y={stubTop - 3} width="8" height="5"
+                    fill="rgba(192,212,219,0.5)" stroke="#4FB8D4" strokeWidth="0.6" />
+              <line x1={pt.connectX - 4} y1={stubTop - 0.5} x2={pt.connectX + 4} y2={stubTop - 0.5}
+                    stroke="rgba(192,212,219,0.8)" strokeWidth="0.3" />
             </g>
           );
         })}
 
-        {positionedCards.map(({ svcId, el, x, y, size }) => (
+        {positionedCards.map(({ svcId, el, x, y, size, zoneKey }) => (
           <SchlenkCard
             key={svcId}
             element={el}
@@ -184,6 +190,7 @@ export default function SchlenkBenchScene(props) {
             y={y}
             size={size}
             loadPercent={statsMap[svcId]?.level ?? 50}
+            tier={getTierFromStatus({ stats: statsMap[svcId], zone: zoneKey, seedId: svcId })}
             onClick={() => handleClick(el)}
           />
         ))}

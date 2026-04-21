@@ -1,8 +1,11 @@
 import React from 'react';
 import GlasswareRender from './GlasswareRender.jsx';
+import CardTierOverlay from './CardTierOverlay.jsx';
 import { BOT_GLASSWARE } from './serviceGlassware.js';
 import { getElementColor } from './elementColors.js';
+import { getShape } from './glasswareRegistry.js';
 import { ZONES } from './zoneLayout.js';
+import { getTierFromStatus } from './tierFromStatus.js';
 
 /**
  * BOTS zone — renders 20 NMR tubes in a row across the bottom of the scene.
@@ -25,6 +28,8 @@ export default function SchlenkBotRack({ bots = [], onBotClick = () => {} }) {
         const x = zone.x + gap + i * (tubeW + gap);
         const y = zone.y + 10;
         const color = getElementColor(bot.symbol || '').color;
+        const botShape = getShape(BOT_GLASSWARE);
+        const botTier = getTierFromStatus({ stats: bot.stats, zone: 'BOTS', seedId: bot.id || bot.symbol || String(i) });
         return (
           <g
             key={bot.id || bot.symbol || i}
@@ -66,6 +71,7 @@ export default function SchlenkBotRack({ bots = [], onBotClick = () => {} }) {
               >
                 {(bot.name || '').slice(0, 8).toUpperCase()}
               </text>
+              <CardTierOverlay tier={botTier} shape={botShape} fillColor={color} />
             </GlasswareRender>
           </g>
         );

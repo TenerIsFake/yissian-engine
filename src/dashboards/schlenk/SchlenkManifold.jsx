@@ -8,6 +8,10 @@ const argonFlowKeyframes = `
   0%   { stroke-dashoffset: 0; }
   100% { stroke-dashoffset: -40; }
 }
+@keyframes schlenkVacFlow {
+  0%   { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 40; }
+}
 `;
 
 /**
@@ -44,6 +48,17 @@ export default function SchlenkManifold({ statsMap = {} }) {
       <line x1="50" y1="28" x2={SCENE_W - 50} y2="28"
             stroke="#B47FE8" strokeWidth="1.4" strokeDasharray="6 6" opacity="0.7"
             style={{ animation: 'schlenkArgonFlow 2s linear infinite' }} />
+      <line
+        x1="50"
+        y1="58"
+        x2={SCENE_W - 50}
+        y2="58"
+        stroke="#7A9BAE"
+        strokeWidth="1.4"
+        strokeDasharray="6 6"
+        opacity="0.5"
+        style={{ animation: 'schlenkVacFlow 2.4s linear infinite' }}
+      />
 
       {/* 6 ports + stopcocks */}
       {portIds.map(({ id, label }) => {

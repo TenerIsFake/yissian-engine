@@ -14,23 +14,13 @@ const SIZE_MAP = {
   xxs: { w: 24, h: 36 },
 };
 
-function getTierKey(loadPercent) {
-  const p = Math.max(0, Math.min(100, Number(loadPercent) || 0));
-  if (p <= 20) return 't1';
-  if (p <= 45) return 't2';
-  if (p <= 70) return 't3';
-  if (p <= 90) return 't4';
-  return 't5';
-}
-
-export default function SchlenkCard({ element, x = 0, y = 0, size = 'sm', loadPercent = 50, onClick }) {
+export default function SchlenkCard({ element, x = 0, y = 0, size = 'sm', loadPercent = 50, tier = 't2', onClick }) {
   if (!element) return null;
   const shapeId = getServiceGlassware(element.id || element.symbol);
   const colorEntry = getElementColor(element.symbol || '');
   const shape = getShape(shapeId);
   const { w, h } = SIZE_MAP[size] || SIZE_MAP.sm;
   const textY = shape ? (shape.liquidTop + shape.liquidBottom) / 2 : 60;
-  const tier = getTierKey(loadPercent);
 
   return (
     <g transform={`translate(${x - w / 2}, ${y - h / 2})`} onClick={onClick} style={{ cursor: 'pointer' }}>
