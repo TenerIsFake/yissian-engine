@@ -147,6 +147,43 @@ export const SHAPES = {
     liquidTop: 28, liquidBottom: 114,
     sidearm: false,
   },
+
+  // ─── Ancillary (utilities + bots) ───
+  'addition-funnel': {
+    viewBox: '0 0 80 140',
+    path: 'M 24 16 L 24 70 L 36 90 L 36 112 L 44 112 L 44 90 L 56 70 L 56 16 Z',
+    jointX: 40, jointY: 16,
+    liquidTop: 20, liquidBottom: 88,
+    sidearm: true,
+  },
+  'separatory': {
+    viewBox: '0 0 80 140',
+    path: 'M 20 20 L 20 40 C 12 50 14 80 30 96 L 36 112 L 44 112 L 50 96 C 66 80 68 50 60 40 L 60 20 Z',
+    jointX: 40, jointY: 20,
+    liquidTop: 26, liquidBottom: 108,
+    sidearm: false,
+  },
+  'buchner-filter': {
+    viewBox: '0 0 80 140',
+    path: 'M 16 12 L 16 34 L 32 34 L 32 48 L 34 60 L 18 120 L 62 120 L 46 60 L 48 48 L 48 34 L 64 34 L 64 12 Z',
+    jointX: 40, jointY: 12,
+    liquidTop: 70, liquidBottom: 118,
+    sidearm: true,
+  },
+  'nmr-tube': {
+    viewBox: '0 0 60 140',
+    path: 'M 22 10 L 38 10 L 38 14 L 36 14 L 36 124 C 36 132 24 132 24 124 L 24 14 L 22 14 Z',
+    jointX: 30, jointY: 10,
+    liquidTop: 30, liquidBottom: 130,
+    sidearm: false,
+  },
+  'hg-bubbler': {
+    viewBox: '0 0 80 140',
+    path: 'M 16 14 L 16 100 C 16 118 46 118 46 100 L 46 44 L 64 44 L 64 14 L 60 14 L 60 40 L 42 40 L 42 100 C 42 112 20 112 20 100 L 20 14 Z',
+    jointX: 30, jointY: 14,
+    liquidTop: 78, liquidBottom: 110,
+    sidearm: false,
+  },
 };
 
 export function getShape(id) {
