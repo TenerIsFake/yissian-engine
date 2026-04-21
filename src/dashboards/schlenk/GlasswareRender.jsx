@@ -39,6 +39,11 @@ import { soxhletShape } from './glassware/soxhlet.jsx';
 import { coldTrapShape } from './glassware/coldTrap.jsx';
 import { kugelrohrShape } from './glassware/kugelrohr.jsx';
 import { sublimationShape } from './glassware/sublimation.jsx';
+import { additionFunnelShape } from './glassware/additionFunnel.jsx';
+import { separatoryShape } from './glassware/separatory.jsx';
+import { buchnerFilterShape } from './glassware/buchnerFilter.jsx';
+import { nmrTubeShape } from './glassware/nmrTube.jsx';
+import { hgBubblerShape } from './glassware/hgBubbler.jsx';
 
 const RENDERERS = {
   'rbf-1neck': rbf1NeckShape,
@@ -60,6 +65,11 @@ const RENDERERS = {
   'cold-trap': coldTrapShape,
   'kugelrohr': kugelrohrShape,
   'sublimation': sublimationShape,
+  'addition-funnel': additionFunnelShape,
+  'separatory': separatoryShape,
+  'buchner-filter': buchnerFilterShape,
+  'nmr-tube': nmrTubeShape,
+  'hg-bubbler': hgBubblerShape,
 };
 
 function hexToRgba(hex, a) {
