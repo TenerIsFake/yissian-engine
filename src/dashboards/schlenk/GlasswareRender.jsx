@@ -30,6 +30,10 @@ import { pearFlaskShape } from './glassware/pearFlask.jsx';
 import { jYoungShape } from './glassware/jYoung.jsx';
 import { rotovapBumpShape } from './glassware/rotovapBump.jsx';
 import { kjeldahlShape } from './glassware/kjeldahl.jsx';
+import { dimrothShape } from './glassware/dimroth.jsx';
+import { liebigShape } from './glassware/liebig.jsx';
+import { allihnShape } from './glassware/allihn.jsx';
+import { coldFingerShape } from './glassware/coldFinger.jsx';
 
 const RENDERERS = {
   'rbf-1neck': rbf1NeckShape,
@@ -42,6 +46,10 @@ const RENDERERS = {
   'j-young': jYoungShape,
   'rotovap-bump': rotovapBumpShape,
   'kjeldahl': kjeldahlShape,
+  'dimroth': dimrothShape,
+  'liebig': liebigShape,
+  'allihn': allihnShape,
+  'cold-finger': coldFingerShape,
 };
 
 function hexToRgba(hex, a) {
