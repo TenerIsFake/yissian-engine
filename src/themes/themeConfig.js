@@ -42,6 +42,7 @@ import aquariumThemes from './modes/aquarium.js';
 import gardenThemes from './modes/garden.js';
 import brewThemes from './modes/brew.js';
 import libraryThemes from './modes/library.js';
+import schlenkThemes from './modes/schlenk.js';
 
 // ── Scene configs (for AnimatedBackground) ─────────────────────
 // Extracted from mode files for direct lookup by mode ID
@@ -55,6 +56,7 @@ const ALL_MODE_THEMES = [
   blueprintThemes, apothecaryThemes, funhouseThemes,
   metroThemes, safariThemes,
   heistThemes, aquariumThemes, gardenThemes, brewThemes, libraryThemes,
+  schlenkThemes,
 ];
 
 // ── Build unified THEMES object ────────────────────────────────
@@ -98,7 +100,7 @@ const MODES = [
   'WEATHER', 'AIRPORT', 'DINO', 'NOIR', 'VINYL', 'BAND', 'PARTICLE',
   'GLOBE', 'FORGE', 'OCEAN', 'TACTICAL', 'STEAM', 'ARCADE',
   'BLUEPRINT', 'APOTHECARY', 'FUNHOUSE', 'METRO', 'SAFARI',
-  'HEIST', 'AQUARIUM', 'GARDEN', 'BREW', 'LIBRARY',
+  'HEIST', 'AQUARIUM', 'GARDEN', 'BREW', 'LIBRARY', 'SCHLENK',
 ];
 
 export const MODE_THEMES = {};
