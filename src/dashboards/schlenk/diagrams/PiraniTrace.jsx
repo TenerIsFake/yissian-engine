@@ -7,14 +7,14 @@ import React from 'react';
  * Prop surface matches SpeedtestSparkline (downloadMbps, uploadMbps, isStale).
  */
 export default function PiraniTrace({ downloadMbps = 0, uploadMbps = 0, isStale = false }) {
-  // Map 0-1000 Mbps to 0-180° needle sweep (logarithmic feel: log10 scale)
-  const pctOf = (mbps) => {
-    if (mbps <= 0) return 0;
+  // Map 0-1000 Mbps to 0-180° needle sweep (logarithmic feel: log10 scale).
+  const degOf = (mbps) => {
+    if (!Number.isFinite(mbps) || mbps <= 0) return 0;
     const logScale = Math.min(1, Math.log10(Math.max(1, mbps)) / Math.log10(1000));
     return logScale * 180;
   };
-  const dlAngle = -90 + pctOf(downloadMbps);
-  const ulAngle = -90 + pctOf(uploadMbps);
+  const dlAngle = -90 + degOf(downloadMbps);
+  const ulAngle = -90 + degOf(uploadMbps);
   const staleOpacity = isStale ? 0.45 : 1;
 
   return (
@@ -25,13 +25,13 @@ export default function PiraniTrace({ downloadMbps = 0, uploadMbps = 0, isStale 
       {/* Scale arc (A cyan) */}
       <path d="M 32 60 A 38 38 0 0 1 108 60" fill="none" stroke="#4FB8D4" strokeWidth="0.8" />
       {/* Scale tick marks at 1, 10, 100, 1000 Mbps */}
-      {[0, 45, 90, 135, 180].map((deg, i) => {
+      {[0, 45, 90, 135, 180].map((deg) => {
         const rad = (deg - 180) * Math.PI / 180;
         const x1 = 70 + 35 * Math.cos(rad);
         const y1 = 60 + 35 * Math.sin(rad);
         const x2 = 70 + 41 * Math.cos(rad);
         const y2 = 60 + 41 * Math.sin(rad);
-        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#4FB8D4" strokeWidth="0.8" />;
+        return <line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#4FB8D4" strokeWidth="0.8" />;
       })}
       {/* Needle DL (violet Ar accent) */}
       <g transform={`rotate(${dlAngle} 70 60)`}>
