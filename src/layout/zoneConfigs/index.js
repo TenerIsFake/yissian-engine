@@ -33,7 +33,6 @@ import AQUARIUM_ZONES from './aquarium.js';
 import GARDEN_ZONES from './garden.js';
 import BREW_ZONES from './brew.js';
 import LIBRARY_ZONES from './library.js';
-import SCHLENK_ZONES from './schlenk.js';
 
 registerZoneConfig('SPACE', SPACE_ZONES);
 registerZoneConfig('NEURAL', NEURAL_ZONES);
@@ -64,4 +63,3 @@ registerZoneConfig('AQUARIUM', AQUARIUM_ZONES);
 registerZoneConfig('GARDEN', GARDEN_ZONES);
 registerZoneConfig('BREW', BREW_ZONES);
 registerZoneConfig('LIBRARY', LIBRARY_ZONES);
-registerZoneConfig('SCHLENK', SCHLENK_ZONES);
