@@ -31,6 +31,20 @@ const GAS_BY_SYMBOL = {
 
 const DEFAULT_GAS = AR;
 
+const GAS_LABELS = {
+  [AR]:  'Ar',
+  [N2]:  'N₂',
+  [H2]:  'H₂',
+  [O2]:  'O₂',
+  [HE]:  'He',
+  [CO2]: 'CO₂',
+  [NE]:  'Ne',
+};
+
+// Bubble rate: inert gases rise slowly, reactive gases faster.
+const BUBBLE_RATE_INERT = 0.6;
+const BUBBLE_RATE_REACTIVE = 1.0;
+
 /**
  * Look up the characteristic gas for an element symbol.
  * @param {string} symbol — element symbol (e.g. 'La', 'H', 'Pu')
@@ -38,16 +52,9 @@ const DEFAULT_GAS = AR;
  */
 export function getElementGas(symbol) {
   const color = GAS_BY_SYMBOL[symbol] || DEFAULT_GAS;
-  const label =
-    color === AR ? 'Ar' :
-    color === N2 ? 'N₂' :
-    color === H2 ? 'H₂' :
-    color === O2 ? 'O₂' :
-    color === HE ? 'He' :
-    color === CO2 ? 'CO₂' :
-    color === NE ? 'Ne' : 'Ar';
+  const label = GAS_LABELS[color] || 'Ar';
   // Ar bubbles slowly (inert atmosphere), H2/O2 faster (reactive)
-  const bubbleRate = color === AR || color === N2 ? 0.6 : 1.0;
+  const bubbleRate = color === AR || color === N2 ? BUBBLE_RATE_INERT : BUBBLE_RATE_REACTIVE;
   return { color, label, bubbleRate };
 }
 
