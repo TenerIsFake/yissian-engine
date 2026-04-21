@@ -8,11 +8,11 @@ export const MANIFOLD_H = 90;   // y=0..90 = manifold strip
 export const BOTS_Y = 520;      // BOTS zone starts here, full width
 
 export const ZONES = {
-  MEDIA:    { x: 30,  y: 120, w: 230, h: 380, portId: 'P1', label: 'MEDIA · P1' },
-  LIBRARY:  { x: 275, y: 120, w: 200, h: 380, portId: 'P2', label: 'LIBRARY · P2' },
-  PIPELINE: { x: 490, y: 120, w: 190, h: 220, portId: 'P3', label: 'PIPELINE · P3' },
-  INFRA:    { x: 695, y: 120, w: 275, h: 200, portId: 'P4', label: 'INFRA · P4' },
-  TOOLS:    { x: 490, y: 360, w: 480, h: 140, portId: 'P5', label: 'TOOLS · P5' },
+  MEDIA:    { x: 30,  y: 120, w: 170, h: 210, portId: 'P1', label: 'MEDIA · P1' },
+  LIBRARY:  { x: 210, y: 120, w: 280, h: 380, portId: 'P2', label: 'LIBRARY · P2' },
+  PIPELINE: { x: 500, y: 120, w: 190, h: 220, portId: 'P3', label: 'PIPELINE · P3' },
+  TOOLS:    { x: 700, y: 120, w: 280, h: 220, portId: 'P5', label: 'TOOLS · P5' },
+  INFRA:    { x: 500, y: 360, w: 480, h: 140, portId: 'P4', label: 'INFRA · P4' },
   BOTS:     { x: 30,  y: BOTS_Y, w: 940, h: 120, portId: 'P6', label: 'BOTS · P6 · NMR RACK' },
 };
 
