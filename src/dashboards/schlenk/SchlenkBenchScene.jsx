@@ -3,8 +3,10 @@ import SchlenkManifold from './SchlenkManifold.jsx';
 import SchlenkCard from './SchlenkCard.jsx';
 import SchlenkBotRack from './SchlenkBotRack.jsx';
 import SchlenkDetailPanel from './SchlenkDetailPanel.jsx';
-import { SCENE_W, SCENE_H, ZONES, listZones, PORT_X } from './zoneLayout.js';
+import { SCENE_W, SCENE_H, ZONES, listZones } from './zoneLayout.js';
 import { SERVICE_TO_ZONE, groupServicesByZone, positionForService } from './serviceLayout.js';
+import { getServiceGlassware } from './serviceGlassware.js';
+import { getShape } from './glasswareRegistry.js';
 
 const ZONE_CARD_SIZE = {
   MEDIA: 'xs',
@@ -21,6 +23,32 @@ const SERVICE_SIZE_OVERRIDE = {
 };
 
 const SIZE_MAP_H = { lg: 96, md: 78, sm: 66, xs: 54, xxs: 36 };
+
+// Compute where a card's joint (or sidearm) is in scene coords, given the card center + size.
+function getConnectorPoint(el, x, y, size) {
+  const shapeId = getServiceGlassware(el.id || el.symbol);
+  const shape = getShape(shapeId);
+  const widthMap = { lg: 64, md: 52, sm: 44, xs: 36, xxs: 24 };
+  const w = widthMap[size] || 44;
+  const h = SIZE_MAP_H[size] || 66;
+
+  if (!shape) {
+    // No shape found; connector at card top-center
+    return { connectX: x, connectY: y - h / 2, sidearm: false };
+  }
+
+  // Parse shape viewBox and compute scaling
+  const [vbX, vbY, vbW, vbH] = shape.viewBox.split(' ').map(Number);
+  const scaleX = w / vbW;
+  const scaleY = h / vbH;
+
+  // Transform joint from shape coords to scene coords
+  // Card's top-left in scene coords = (x - w/2, y - h/2)
+  const jointSceneX = (x - w / 2) + (shape.jointX - vbX) * scaleX;
+  const jointSceneY = (y - h / 2) + (shape.jointY - vbY) * scaleY;
+
+  return { connectX: jointSceneX, connectY: jointSceneY, sidearm: shape.sidearm };
+}
 
 const ZONE_TINTS = {
   MEDIA:    { fill: 'rgba(79,184,212,0.05)',  stroke: '#4FB8D4' },
@@ -109,23 +137,6 @@ export default function SchlenkBenchScene(props) {
       >
         <SchlenkManifold statsMap={statsMap} />
 
-        {/* Port stubs: short cyan drop from each manifold port down to its zone top.
-            Does NOT route per-card — that caused tubing to cross through other flasks. */}
-        {listZones().map(([zoneKey, zone]) => {
-          const x = PORT_X[zone.portId];
-          if (x === undefined) return null;
-          return (
-            <g key={`port-stub-${zoneKey}`}>
-              {/* Glass tubing (double-stroke: outer cyan + inner pale highlight for depth) */}
-              <line x1={x} y1="72" x2={x} y2={zone.y} stroke="#4FB8D4" strokeWidth="2.4" opacity="0.5" />
-              <line x1={x} y1="72" x2={x} y2={zone.y} stroke="rgba(192,212,219,0.35)" strokeWidth="0.8" />
-              {/* Ground-glass joint nub where the stub meets the zone boundary */}
-              <rect x={x - 4} y={zone.y - 4} width="8" height="6" fill="rgba(192,212,219,0.35)" stroke="#4FB8D4" strokeWidth="0.6" />
-              <line x1={x - 4} y1={zone.y - 1} x2={x + 4} y2={zone.y - 1} stroke="rgba(192,212,219,0.7)" strokeWidth="0.3" />
-            </g>
-          );
-        })}
-
         {listZones().map(([zoneKey, zone]) => {
           const tint = ZONE_TINTS[zoneKey];
           return (
@@ -137,6 +148,30 @@ export default function SchlenkBenchScene(props) {
                     letterSpacing="0.15em" opacity="0.7" pointerEvents="none">
                 {zone.label}
               </text>
+            </g>
+          );
+        })}
+
+        {/* Per-card glass connectors: a short ground-glass-joint stub at each card's
+            top joint (or sidearm for flasks with one). Implies connection to the
+            manifold above without drawing long tubing that would cross other flasks. */}
+        {positionedCards.map(({ svcId, el, x, y, size }) => {
+          const pt = getConnectorPoint(el, x, y, size);
+          // Stub extends UP 10px from the joint toward the manifold
+          const stubHeight = 10;
+          const stubTop = pt.connectY - stubHeight;
+          return (
+            <g key={`connector-${svcId}`} opacity="0.75">
+              {/* Glass tubing segment (double-stroke: outer borosilicate + inner sheen) */}
+              <line x1={pt.connectX} y1={stubTop} x2={pt.connectX} y2={pt.connectY}
+                    stroke="#4FB8D4" strokeWidth="2.4" />
+              <line x1={pt.connectX} y1={stubTop} x2={pt.connectX} y2={pt.connectY}
+                    stroke="rgba(255,255,255,0.35)" strokeWidth="0.6" />
+              {/* Ground-glass joint at the connection point (hashed rect) */}
+              <rect x={pt.connectX - 4} y={pt.connectY - 2} width="8" height="5"
+                    fill="rgba(192,212,219,0.5)" stroke="#4FB8D4" strokeWidth="0.6" />
+              <line x1={pt.connectX - 4} y1={pt.connectY + 0.5} x2={pt.connectX + 4} y2={pt.connectY + 0.5}
+                    stroke="rgba(192,212,219,0.8)" strokeWidth="0.3" />
             </g>
           );
         })}
