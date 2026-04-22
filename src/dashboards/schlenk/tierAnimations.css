@@ -23,6 +23,15 @@
 }
 .schlenk-t1-frost { animation: schlenkT1Frost 3s ease-in-out infinite; }
 
+/* T2 — Static bench: one lazy bubble every 4s */
+@keyframes schlenkT2LazyBubble {
+  0%   { transform: translateY(0); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateY(-55px); opacity: 0; }
+}
+.schlenk-t2-lazy-bubble { animation: schlenkT2LazyBubble 4s linear infinite; }
+
 /* T3 — Argon flow: rapid bubble train (3 bubbles staggered) + gas line dash */
 @keyframes schlenkT3Bubble {
   0%   { transform: translateY(0); opacity: 0; }
@@ -97,6 +106,7 @@
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .schlenk-t1-breath, .schlenk-t1-frost,
+  .schlenk-t2-lazy-bubble,
   .schlenk-t3-bubble-a, .schlenk-t3-bubble-b, .schlenk-t3-bubble-c, .schlenk-t3-gas,
   .schlenk-t4-mantle, .schlenk-t4-vapor-a, .schlenk-t4-vapor-b, .schlenk-t4-vapor-c, .schlenk-t4-drop-a, .schlenk-t4-drop-b,
   .schlenk-t5-crack, .schlenk-t5-spray-a, .schlenk-t5-spray-b, .schlenk-t5-spray-c, .schlenk-t5-spray-d, .schlenk-t5-spray-e, .schlenk-t5-smoke, .schlenk-t5-body-glow {

@@ -15,56 +15,56 @@ export const GLASSWARE_BY_SERVICE = {
   sonarr:             'long-schlenk',     // long-neck sealed
   lidarr:             'pear-flask',
   tunarr:             'pear-flask',
-  bazarr:             'schlenk-sidearm',
+  bazarr:             'dean-stark',       // subtitle separator
   prowlarr:           'long-schlenk',     // sealed long-neck
   qbittorrent:        'schlenk-sidearm',
   sabnzbd:            'cold-trap',
   gluetun:            'schlenk-sidearm',  // VPN sealed under inert atmosphere
-  cloudflared:        'allihn',
-  notifiarr:          'allihn',
-  flaresolverr:       'dimroth',
+  cloudflared:        'fischer-porter',   // pressure-sealed tunnel
+  notifiarr:          'hg-bubbler',       // event sink — messages bubble through
+  flaresolverr:       'cold-trap',        // captures transient challenges
   'musicbrainz-applet': 'rbf-2neck',
 
   // ─── LIBRARY zone ───
-  audiobookshelf:     'rbf-2neck',
-  kavita:             'rbf-2neck',
-  snappymail:         'rbf-1neck',
+  audiobookshelf:     'rbf-3neck',        // 3 necks = audio streaming + library + UI
+  kavita:             'rbf-2neck',        // reader + admin
+  snappymail:         'pear-flask',       // mail digest
 
   // ─── PIPELINE zone ───
   // (downloaders already mapped above; this zone pulls them via layout)
 
   // ─── INFRA zone (Actinides) ───
-  prometheus:         'dimroth',
-  grafana:            'dimroth',
-  cadvisor:           'liebig',
+  prometheus:         'dimroth',          // coiled metrics capture
+  grafana:            'allihn',           // bulb-train dashboard
+  cadvisor:           'liebig',           // straight-tube container metrics
   glances:            'liebig',
   'uptime-kuma':      'allihn',
   'cold-finger':      'cold-finger',
   'diskhealth-bridge': 'cold-finger',
-  'restic-sidecar':   'cold-finger',
+  'restic-sidecar':   'cold-trap',        // snapshot capture
   'docker-monitor':   'fischer-porter',
   'socket-proxy':     'fischer-porter',
-  couchdb:            'fischer-porter',
-  syncthing:          'kugelrohr',
-  watchtower:         'rbf-1neck',
-  ntfy:               'hg-bubbler',
+  couchdb:            'kjeldahl',         // long-running digestion store
+  syncthing:          'kugelrohr',        // bulb-to-bulb sync
+  watchtower:         'sublimation',      // passive accumulation
+  ntfy:               'hg-bubbler',       // overpressure bubbler
   'braintree-nginx':  'rbf-1neck',
 
   // ─── TOOLS zone ───
   'port-updater':     'buchner-filter',
   triggercmd:         'addition-funnel',
-  'obsidian-remote':  'addition-funnel',
-  'claude-terminal':  'addition-funnel',
-  'clsh':             'addition-funnel',
+  'obsidian-remote':  'j-young',          // sealed knowledge vault
+  'claude-terminal':  'j-young',          // sealed terminal
+  'clsh':             'j-young',          // sealed terminal
   lottery:            'separatory',
   'tautulli-bridge':  'addition-funnel',
-  bhyve:              'addition-funnel',
-  kometa:             'kjeldahl',         // long-neck digestion
+  bhyve:              'addition-funnel',  // injects schedule
+  kometa:             'sublimation',      // metadata refinement
   'media-bot':        'rbf-2neck',
-  'hue-bridge':       'buchner-filter',
+  'hue-bridge':       'pear-flask',       // small lighting control
   'lan-presence':     'buchner-filter',
-  'home-assistant':   'rbf-3neck',
-  'musicbrainz':      'dimroth',
+  'home-assistant':   'rbf-3neck',        // multi-integration hub
+  musicbrainz:        'soxhlet',          // continuous indexing extraction
 
   // Fallback for unmapped services: DEFAULT_SHAPE (rbf-1neck)
 };
