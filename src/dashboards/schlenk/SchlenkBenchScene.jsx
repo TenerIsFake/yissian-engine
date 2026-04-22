@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import SchlenkManifold from './SchlenkManifold.jsx';
 import SchlenkCard from './SchlenkCard.jsx';
 import SchlenkBotRack from './SchlenkBotRack.jsx';
-import SchlenkDetailPanel from './SchlenkDetailPanel.jsx';
 import { SCENE_W, SCENE_H, ZONES, PORT_X, listZones } from './zoneLayout.js';
 import { SERVICE_TO_ZONE, groupServicesByZone, positionForService } from './serviceLayout.js';
 import { getServiceGlassware } from './serviceGlassware.js';
@@ -61,21 +60,13 @@ const ZONE_TINTS = {
 };
 
 export default function SchlenkBenchScene(props) {
-  // Local selection for the inline detail panel overlay
-  const [selected, setSelected] = useState(null);
-
   // ServicesWidget passes elementRegistry (47 service objects). Fall back to
   // allElements (118 periodic-table tuples) only if elementRegistry absent.
   const elementRegistry = props.elementRegistry || [];
   const allElements = props.allElements || [];
   const elements = elementRegistry.length ? elementRegistry : allElements;
   const statsMap = props.statsMap || {};
-  const externalOnClick = props.onElementClick || (() => {});
-
-  const handleClick = (element) => {
-    setSelected(element);
-    externalOnClick(element); // preserve any app-level handler
-  };
+  const handleClick = props.onElementClick || (() => {});
 
   // Partition: services with an assigned zone vs bots (BOTS zone or unassigned)
   const zoneOf = (el) => el.zone || SERVICE_TO_ZONE[el.id] || null;
@@ -254,24 +245,6 @@ export default function SchlenkBenchScene(props) {
 
         <SchlenkBotRack bots={bots} onBotClick={handleClick} />
       </svg>
-
-      {/* Detail panel overlay — opens on card/bot click */}
-      {selected && (
-        <div style={{
-          position: 'absolute',
-          top: 40,
-          right: 24,
-          zIndex: 20,
-          boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
-        }}>
-          <SchlenkDetailPanel
-            element={selected}
-            stats={statsMap[selected.id] || {}}
-            allElements={elements}
-            onClose={() => setSelected(null)}
-          />
-        </div>
-      )}
     </div>
   );
 }

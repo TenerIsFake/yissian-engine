@@ -38,6 +38,7 @@ const GardenGrid = lazy(() => import('./dashboards/garden/GardenGrid.jsx'));
 const BrewGrid = lazy(() => import('./dashboards/brew/BrewGrid.jsx'));
 const LibraryGrid = lazy(() => import('./dashboards/library/LibraryGrid.jsx'));
 const SchlenkBenchScene = lazy(() => import('./dashboards/schlenk/SchlenkBenchScene.jsx'));
+const SchlenkDetailPanel = lazy(() => import('./dashboards/schlenk/SchlenkDetailPanel.jsx'));
 
 // ── Config objects (static — small, needed synchronously) ──
 import { STELLAR_LABELS, SPACE_OVERLAY } from './dashboards/space/spaceConfig.js';
@@ -1206,6 +1207,7 @@ const MODE_REGISTRY = {
   },
   SCHLENK: {
     Grid: SchlenkBenchScene,
+    DetailPanel: SchlenkDetailPanel,
     labels: CATEGORY_LABELS,
     tickerLabels: {
       films: ['DISTILLATE ·', 'Fractions_Collected'],
