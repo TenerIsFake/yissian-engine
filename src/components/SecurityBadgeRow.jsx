@@ -34,6 +34,12 @@ function isExpectedPort(addr, expected, v4Ports) {
   if (expected.has(addr)) return true;
   const v6Match = addr.match(/^\[::]:(\d+)$/);
   if (v6Match && v4Ports.has(v6Match[1])) return true;
+  // Loopback listeners (127.0.0.0/8 or [::1]) cannot be reached from the LAN
+  // — they live in WSL's local namespace only. HA's ephemeral internal worker
+  // port drifts on every restart; rather than chase it, treat all loopback as
+  // inherently safe since it's not a LAN-exposure concern.
+  if (/^127\./.test(addr)) return true;
+  if (/^\[::1\]:/.test(addr)) return true;
   return false;
 }
 
