@@ -3,6 +3,7 @@
 // Renders SRV-1 + SRV-2 apparatus above each manifold, 6 stopcocks per manifold,
 // 3 zones per server, 3 centered lecture bottles, and a U-tube manometer.
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   CAST_W, CAST_H, AR_Y, VAC_Y,
   SRV1_MANIFOLD, SRV2_MANIFOLD, COUPLING,
@@ -24,12 +25,55 @@ function stat(statsMap, serviceId, key, fallback = 0) {
   return statsMap?.[serviceId]?.[key] ?? fallback;
 }
 
+async function fetchSrv1Glances() {
+  const results = { cpu: 0, ram: 0, downloadMbps: 1, uploadMbps: 1, pingMs: 0, driveC: 0, driveJ: 0, driveQ: 0, driveT: 0 };
+  try {
+    const [memRes, cpuRes, fsRes] = await Promise.all([
+      fetch('/api/glances/api/4/mem').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/glances/api/4/cpu').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/glances/api/4/fs').then(r => r.ok ? r.json() : null).catch(() => null),
+    ]);
+    if (memRes) results.ram = memRes.percent ?? 0;
+    if (cpuRes) results.cpu = cpuRes.total ?? 0;
+    if (Array.isArray(fsRes)) {
+      for (const fs of fsRes) {
+        const mnt = fs.mnt_point || '';
+        const pct = fs.percent ?? 0;
+        if (mnt === '/c' || mnt.toLowerCase() === 'c:') results.driveC = pct;
+        else if (mnt === '/j' || mnt.toLowerCase() === 'j:') results.driveJ = pct;
+        else if (mnt === '/q' || mnt.toLowerCase() === 'q:') results.driveQ = pct;
+        else if (mnt === '/t' || mnt.toLowerCase() === 't:') results.driveT = pct;
+      }
+    }
+  } catch (_) {}
+  return results;
+}
+
+async function fetchSrv2Glances() {
+  const results = { cpu: 0, ram: 0, downloadMbps: 1, uploadMbps: 1, pingMs: 0, driveC: 0 };
+  try {
+    const [memRes, cpuRes, fsRes] = await Promise.all([
+      fetch('/api/glances2/api/4/mem').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/glances2/api/4/cpu').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/glances2/api/4/fs').then(r => r.ok ? r.json() : null).catch(() => null),
+    ]);
+    if (memRes) results.ram = memRes.percent ?? 0;
+    if (cpuRes) results.cpu = cpuRes.total ?? 0;
+    if (Array.isArray(fsRes)) {
+      for (const fs of fsRes) {
+        const mnt = fs.mnt_point || '';
+        if (mnt === '/c' || mnt.toLowerCase() === 'c:') results.driveC = fs.percent ?? 0;
+      }
+    }
+  } catch (_) {}
+  return results;
+}
+
 export default function SchlenkCastScene({ statsMap = {}, elementRegistry = [] }) {
-  // Aggregate SRV-1 and SRV-2 metrics from statsMap.
-  // Convention: SRV-1 metrics on 'glances-srv1'-style keys, SRV-2 on 'glances-srv2'.
-  // Fallback to 0 if unavailable — component renders neutral/empty state.
-  const srv1 = statsMap.srv1 || {};
-  const srv2 = statsMap.srv2 || {};
+  const srv1Query = useQuery({ queryKey: ['schlenk-cast-srv1'], queryFn: fetchSrv1Glances, refetchInterval: 20000 });
+  const srv2Query = useQuery({ queryKey: ['schlenk-cast-srv2'], queryFn: fetchSrv2Glances, refetchInterval: 20000 });
+  const srv1 = srv1Query.data || {};
+  const srv2 = srv2Query.data || {};
 
   const cpu1 = srv1.cpu ?? 0;
   const ram1 = srv1.ram ?? 0;
@@ -152,7 +196,7 @@ export default function SchlenkCastScene({ statsMap = {}, elementRegistry = [] }
             )}
             <text x={sx} y="103" fontFamily="monospace" fontSize="5"
                   fill={isZone ? 'rgba(79,184,212,0.6)' : 'rgba(140,240,180,0.6)'}
-                  textAnchor="middle">{isZone ? `S-${key}` : `S-${key}`}</text>
+                  textAnchor="middle">{`S-${key}`}</text>
           </g>
         );
       })}

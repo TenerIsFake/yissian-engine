@@ -25,11 +25,8 @@ export function drivePctToLiquidHeight(fillPct, tankHeight) {
 /** Download Mbps → Ar line dash-offset animation duration in seconds. */
 export function downloadToArDur(mbps) {
   const m = Math.max(1, mbps ?? 1);
-  return Math.max(0.2, 3 / m * 1000 / 1000);  // 3000ms / mbps, capped at 0.2s
+  return Math.max(0.2, 3 / m);
 }
-// Simpler: dur = max(0.2, 3000 / downloadMbps) but downloadMbps is in Mbps units
-// so: dur seconds = max(0.2, 3 / mbps). For 940 Mbps: 3/940 = 0.003s too fast; floored at 0.2s.
-// For 10 Mbps: 3/10 = 0.3s. Reasonable.
 
 /** Upload Mbps → Vac line dash-offset animation duration in seconds. */
 export function uploadToVacDur(mbps) {

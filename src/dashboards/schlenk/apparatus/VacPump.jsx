@@ -20,7 +20,8 @@ export default function VacPump({ x, y, cpuPct = 0 }) {
         <line x1="0" y1="-9" x2="0" y2="9" stroke="#FF8C3C" strokeWidth="1.7" />
         <line x1="-9" y1="0" x2="9" y2="0" stroke="#FF8C3C" strokeWidth="1.7" />
         <animateTransform attributeName="transform" type="rotate"
-                          from="0" to="360" dur={`${rotorDur}s`} repeatCount="indefinite" />
+                          from="0" to="360" dur={`${rotorDur}s`} repeatCount="indefinite"
+                          additive="sum" />
       </g>
       <text x={x} y={y + PUMP_H + 10} fontFamily="monospace" fontSize="6"
             fill="#FF8C3C" textAnchor="middle">CPU {Math.round(cpuPct)}%</text>
