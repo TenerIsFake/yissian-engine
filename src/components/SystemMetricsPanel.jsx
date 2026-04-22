@@ -6,6 +6,7 @@ import CoordComplex from '../dashboards/chem/CoordComplex.jsx';
 import OrbitalDiagram from '../dashboards/chem/OrbitalDiagram.jsx';
 import JablonskiDiagram from '../dashboards/chem/JablonskiDiagram.jsx';
 import SpeedtestSparkline from '../dashboards/chem/SpeedtestSparkline.jsx';
+import '../dashboards/schlenk/SchlenkMetricGlow.css';
 
 const MONO = 'monospace';
 
@@ -99,7 +100,7 @@ const DEFAULT_SECTION_LABELS = { srv1: '◆ SRV-1 ◆ Coordination_Complex', sto
 const DEFAULT_GLANCES_LABELS = { cpu: 'CPU_LOAD', ram: 'RAM_USAGE', netDown: 'NET_DOWN', netUp: 'NET_UP' };
 const DEFAULT_STORAGE_LABELS = { srv1: 'SRV-1', tv: 'TV', movies: 'MOVIES', musicPhotos: 'MUSIC_PHOTOS', srv2: 'SRV-2' };
 
-export const SystemMetricsPanel = ({ addLog, transcodingActive, plexStatsLevel, sectionLabels = DEFAULT_SECTION_LABELS, glancesLabels = DEFAULT_GLANCES_LABELS, storageLabels = DEFAULT_STORAGE_LABELS, widgetLabels, jablonskiLabels, CpuDiagram: CpuDiag = CoordComplex, RamDiagram: RamDiag = CoordComplex, DownloadDiagram: DlDiag = JablonskiDiagram, UploadDiagram: UlDiag = JablonskiDiagram, ServerStorageDiagram: SrvStorDiag = OrbitalDiagram, MediaStorageDiagram: MediaStorDiag = OrbitalDiagram, SpeedtestDiagram: SpeedDiag = SpeedtestSparkline }) => {
+export const SystemMetricsPanel = ({ addLog, transcodingActive, plexStatsLevel, sectionLabels = DEFAULT_SECTION_LABELS, glancesLabels = DEFAULT_GLANCES_LABELS, storageLabels = DEFAULT_STORAGE_LABELS, widgetLabels, jablonskiLabels, glowMetrics = false, CpuDiagram: CpuDiag = CoordComplex, RamDiagram: RamDiag = CoordComplex, DownloadDiagram: DlDiag = JablonskiDiagram, UploadDiagram: UlDiag = JablonskiDiagram, ServerStorageDiagram: SrvStorDiag = OrbitalDiagram, MediaStorageDiagram: MediaStorDiag = OrbitalDiagram, SpeedtestDiagram: SpeedDiag = SpeedtestSparkline }) => {
   const _stored = loadStoredResults();
   const bwRefLive = useRef({ srv1: _stored?.srv1?.downloadMbps ?? 100, srv2: _stored?.srv2?.downloadMbps ?? 100 });
   const [bwRef, setBwRef] = useState({ srv1: _stored?.srv1?.downloadMbps ?? 100, srv2: _stored?.srv2?.downloadMbps ?? 100 });
@@ -382,10 +383,10 @@ export const SystemMetricsPanel = ({ addLog, transcodingActive, plexStatsLevel, 
             {sectionLabels.srv1}
           </div>
           <div className="grid grid-cols-2 gap-6 justify-items-center">
-            <CpuDiag size={110} label={glancesLabels.cpu}  level={cpuStats.level} online={cpuStats.online} details={cpuStats.details} metal="Fe" lowSpin={cpuLowSpin} />
-            <RamDiag size={110} label={glancesLabels.ram} level={ramStats.level} online={ramStats.online} details={ramStats.details} metal="Co" lowSpin={ramLowSpin} />
-            <DlDiag size={110} label={glancesLabels.netDown} level={bandwidthStats.level} online={bandwidthStats.online} details={bandwidthStats.details} variant="emission"   jablonskiLabel={jablonskiLabels?.emission} />
-            <UlDiag size={110} label={glancesLabels.netUp}   level={bw1UpStats.level}     online={bw1UpStats.online}     details={bw1UpStats.details}     variant="excitation" jablonskiLabel={jablonskiLabels?.excitation} />
+            <div className={glowMetrics ? 'schlenk-metric-glow' : undefined}><CpuDiag size={110} label={glancesLabels.cpu}  level={cpuStats.level} online={cpuStats.online} details={cpuStats.details} metal="Fe" lowSpin={cpuLowSpin} /></div>
+            <div className={glowMetrics ? 'schlenk-metric-glow' : undefined}><RamDiag size={110} label={glancesLabels.ram} level={ramStats.level} online={ramStats.online} details={ramStats.details} metal="Co" lowSpin={ramLowSpin} /></div>
+            <div className={glowMetrics ? 'schlenk-metric-glow-warm' : undefined}><DlDiag size={110} label={glancesLabels.netDown} level={bandwidthStats.level} online={bandwidthStats.online} details={bandwidthStats.details} variant="emission"   jablonskiLabel={jablonskiLabels?.emission} /></div>
+            <div className={glowMetrics ? 'schlenk-metric-glow-warm' : undefined}><UlDiag size={110} label={glancesLabels.netUp}   level={bw1UpStats.level}     online={bw1UpStats.online}     details={bw1UpStats.details}     variant="excitation" jablonskiLabel={jablonskiLabels?.excitation} /></div>
           </div>
         </div>
 
@@ -427,10 +428,10 @@ export const SystemMetricsPanel = ({ addLog, transcodingActive, plexStatsLevel, 
             {sectionLabels.srv2}
           </div>
           <div className="grid grid-cols-2 gap-6 justify-items-center">
-            <CpuDiag size={110} label={glancesLabels.cpu}  level={cpu2Stats.level} online={cpu2Stats.online} details={cpu2Stats.details} metal="Cu" isJahnTeller lowSpin={cpu2LowSpin} />
-            <RamDiag size={110} label={glancesLabels.ram} level={ram2Stats.level} online={ram2Stats.online} details={ram2Stats.details} metal="Ni" lowSpin={ram2LowSpin} />
-            <DlDiag size={110} label={glancesLabels.netDown} level={bw2Stats.level}   online={bw2Stats.online}   details={bw2Stats.details}   variant="emission"   jablonskiLabel={jablonskiLabels?.emission} />
-            <UlDiag size={110} label={glancesLabels.netUp}   level={bw2UpStats.level} online={bw2UpStats.online} details={bw2UpStats.details} variant="excitation" jablonskiLabel={jablonskiLabels?.excitation} />
+            <div className={glowMetrics ? 'schlenk-metric-glow' : undefined}><CpuDiag size={110} label={glancesLabels.cpu}  level={cpu2Stats.level} online={cpu2Stats.online} details={cpu2Stats.details} metal="Cu" isJahnTeller lowSpin={cpu2LowSpin} /></div>
+            <div className={glowMetrics ? 'schlenk-metric-glow' : undefined}><RamDiag size={110} label={glancesLabels.ram} level={ram2Stats.level} online={ram2Stats.online} details={ram2Stats.details} metal="Ni" lowSpin={ram2LowSpin} /></div>
+            <div className={glowMetrics ? 'schlenk-metric-glow-warm' : undefined}><DlDiag size={110} label={glancesLabels.netDown} level={bw2Stats.level}   online={bw2Stats.online}   details={bw2Stats.details}   variant="emission"   jablonskiLabel={jablonskiLabels?.emission} /></div>
+            <div className={glowMetrics ? 'schlenk-metric-glow-warm' : undefined}><UlDiag size={110} label={glancesLabels.netUp}   level={bw2UpStats.level} online={bw2UpStats.online} details={bw2UpStats.details} variant="excitation" jablonskiLabel={jablonskiLabels?.excitation} /></div>
           </div>
         </div>
 

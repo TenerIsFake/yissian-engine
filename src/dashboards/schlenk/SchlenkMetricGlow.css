@@ -1,0 +1,17 @@
+/* Radiant glow for retained CHEM diagrams when rendered in SCHLENK mode.
+   Applied via wrapper className in SystemMetricsPanel's render path. */
+@keyframes schlenkMetricGlow {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(180, 127, 232, 0.35)); }
+  50%      { filter: drop-shadow(0 0 6px rgba(180, 127, 232, 0.75)); }
+}
+.schlenk-metric-glow { animation: schlenkMetricGlow 2.8s ease-in-out infinite; }
+
+@keyframes schlenkMetricGlowWarm {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(212, 192, 112, 0.4)); }
+  50%      { filter: drop-shadow(0 0 7px rgba(212, 192, 112, 0.85)); }
+}
+.schlenk-metric-glow-warm { animation: schlenkMetricGlowWarm 2.8s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .schlenk-metric-glow, .schlenk-metric-glow-warm { animation: none; }
+}

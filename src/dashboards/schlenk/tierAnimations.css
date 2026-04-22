@@ -1,0 +1,115 @@
+/* SCHLENK per-card tier animations
+ * Tier is derived from loadPercent:
+ *   0-20   → t1 (cold pump — frost + slow opacity breath)
+ *   21-45  → t2 (static bench — no motion)
+ *   46-70  → t3 (argon flow — rapid bubble train + gas pulse)
+ *   71-90  → t4 (reflux — mantle glow + vapor rising + droplets falling)
+ *   91-100 → t5 (exotherm — crack overlay + eruptive spray + smoke)
+ *
+ * Classes are applied by CardTierOverlay to individual SVG elements, not the whole card.
+ * Honors prefers-reduced-motion.
+ */
+
+/* T1 — Cold pump: slow dewar breath + frost twinkle */
+@keyframes schlenkT1Breath {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.85; }
+}
+.schlenk-t1-breath { animation: schlenkT1Breath 4s ease-in-out infinite; }
+
+@keyframes schlenkT1Frost {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.9; }
+}
+.schlenk-t1-frost { animation: schlenkT1Frost 3s ease-in-out infinite; }
+
+/* T2 — Static bench: one lazy bubble every 4s */
+@keyframes schlenkT2LazyBubble {
+  0%   { transform: translateY(0); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateY(-55px); opacity: 0; }
+}
+.schlenk-t2-lazy-bubble { animation: schlenkT2LazyBubble 4s linear infinite; }
+
+/* T3 — Argon flow: rapid bubble train (3 bubbles staggered) + gas line dash */
+@keyframes schlenkT3Bubble {
+  0%   { transform: translateY(0); opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: translateY(-55px); opacity: 0; }
+}
+.schlenk-t3-bubble-a { animation: schlenkT3Bubble 1.5s linear infinite; }
+.schlenk-t3-bubble-b { animation: schlenkT3Bubble 1.5s linear infinite; animation-delay: -0.5s; }
+.schlenk-t3-bubble-c { animation: schlenkT3Bubble 1.5s linear infinite; animation-delay: -1s; }
+
+@keyframes schlenkT3GasFlow {
+  to { stroke-dashoffset: -14; }
+}
+.schlenk-t3-gas { stroke-dasharray: 3 4; animation: schlenkT3GasFlow 0.6s linear infinite; }
+
+/* T4 — Reflux: mantle glow + vapor rising + condensate falling */
+@keyframes schlenkT4Mantle {
+  from { opacity: 0.3; }
+  to   { opacity: 0.75; }
+}
+.schlenk-t4-mantle { animation: schlenkT4Mantle 1.2s ease-in-out infinite alternate; }
+
+@keyframes schlenkT4Vapor {
+  0%   { transform: translateY(0); opacity: 0; }
+  15%  { opacity: 0.7; }
+  100% { transform: translateY(-40px); opacity: 0; }
+}
+.schlenk-t4-vapor-a { animation: schlenkT4Vapor 2s ease-out infinite; }
+.schlenk-t4-vapor-b { animation: schlenkT4Vapor 2s ease-out infinite; animation-delay: -0.7s; }
+.schlenk-t4-vapor-c { animation: schlenkT4Vapor 2s ease-out infinite; animation-delay: -1.3s; }
+
+@keyframes schlenkT4Drop {
+  0%, 30%  { transform: translateY(0); opacity: 0; }
+  40%      { opacity: 1; }
+  95%      { transform: translateY(60px); opacity: 1; }
+  100%     { opacity: 0; }
+}
+.schlenk-t4-drop-a { animation: schlenkT4Drop 1.8s ease-in infinite; }
+.schlenk-t4-drop-b { animation: schlenkT4Drop 1.8s ease-in infinite; animation-delay: -1s; }
+
+/* T5 — Exotherm: crack reveal + eruptive spray + smoke tendril */
+@keyframes schlenkT5Crack {
+  0%, 60%   { opacity: 0; }
+  63%, 92%  { opacity: 1; }
+  96%, 100% { opacity: 0; }
+}
+.schlenk-t5-crack { animation: schlenkT5Crack 1.6s steps(4, end) infinite; }
+
+@keyframes schlenkT5Spray {
+  0%   { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-50px); opacity: 0; }
+}
+.schlenk-t5-spray-a { animation: schlenkT5Spray 0.6s ease-out infinite; }
+.schlenk-t5-spray-b { animation: schlenkT5Spray 0.6s ease-out infinite; animation-delay: -0.1s; }
+.schlenk-t5-spray-c { animation: schlenkT5Spray 0.6s ease-out infinite; animation-delay: -0.2s; }
+.schlenk-t5-spray-d { animation: schlenkT5Spray 0.6s ease-out infinite; animation-delay: -0.3s; }
+.schlenk-t5-spray-e { animation: schlenkT5Spray 0.6s ease-out infinite; animation-delay: -0.4s; }
+
+@keyframes schlenkT5Smoke {
+  0%   { transform: translateY(0) scaleX(1); opacity: 0.6; }
+  100% { transform: translateY(-30px) scaleX(1.4); opacity: 0; }
+}
+.schlenk-t5-smoke { animation: schlenkT5Smoke 1.2s ease-out infinite; transform-origin: center bottom; }
+
+@keyframes schlenkT5BodyGlow {
+  from { filter: drop-shadow(0 0 3px #E84A28); }
+  to   { filter: drop-shadow(0 0 14px #F08030) brightness(1.18); }
+}
+.schlenk-t5-body-glow { animation: schlenkT5BodyGlow 0.6s ease-in-out infinite alternate; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .schlenk-t1-breath, .schlenk-t1-frost,
+  .schlenk-t2-lazy-bubble,
+  .schlenk-t3-bubble-a, .schlenk-t3-bubble-b, .schlenk-t3-bubble-c, .schlenk-t3-gas,
+  .schlenk-t4-mantle, .schlenk-t4-vapor-a, .schlenk-t4-vapor-b, .schlenk-t4-vapor-c, .schlenk-t4-drop-a, .schlenk-t4-drop-b,
+  .schlenk-t5-crack, .schlenk-t5-spray-a, .schlenk-t5-spray-b, .schlenk-t5-spray-c, .schlenk-t5-spray-d, .schlenk-t5-spray-e, .schlenk-t5-smoke, .schlenk-t5-body-glow {
+    animation: none;
+  }
+}
