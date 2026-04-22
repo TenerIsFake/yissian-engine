@@ -20,11 +20,6 @@ import ColdTrap from './apparatus/ColdTrap.jsx';
 import LectureBottle from './apparatus/LectureBottle.jsx';
 import UTubeManometer from './apparatus/UTubeManometer.jsx';
 
-// Read a numeric stat with fallback
-function stat(statsMap, serviceId, key, fallback = 0) {
-  return statsMap?.[serviceId]?.[key] ?? fallback;
-}
-
 async function fetchSrv1Glances() {
   const results = { cpu: 0, ram: 0, downloadMbps: 1, uploadMbps: 1, pingMs: 0, driveC: 0, driveJ: 0, driveQ: 0, driveT: 0 };
   try {
