@@ -4,8 +4,6 @@ import SchlenkCard from './SchlenkCard.jsx';
 import SchlenkBotRack from './SchlenkBotRack.jsx';
 import { SCENE_W, SCENE_H, ZONES, PORT_X, listZones } from './zoneLayout.js';
 import { SERVICE_TO_ZONE, groupServicesByZone, positionForService } from './serviceLayout.js';
-import { getServiceGlassware } from './serviceGlassware.js';
-import { getShape } from './glasswareRegistry.js';
 import { getTierFromStatus } from './tierFromStatus.js';
 
 const ZONE_CARD_SIZE = {
@@ -23,32 +21,6 @@ const SERVICE_SIZE_OVERRIDE = {
 };
 
 const SIZE_MAP_H = { lg: 96, md: 78, sm: 66, xs: 54, xxs: 36 };
-
-// Compute where a card's joint (or sidearm) is in scene coords, given the card center + size.
-function getConnectorPoint(el, x, y, size) {
-  const shapeId = getServiceGlassware(el.id || el.symbol);
-  const shape = getShape(shapeId);
-  const widthMap = { lg: 64, md: 52, sm: 44, xs: 36, xxs: 24 };
-  const w = widthMap[size] || 44;
-  const h = SIZE_MAP_H[size] || 66;
-
-  if (!shape) {
-    // No shape found; connector at card top-center
-    return { connectX: x, connectY: y - h / 2, sidearm: false };
-  }
-
-  // Parse shape viewBox and compute scaling
-  const [vbX, vbY, vbW, vbH] = shape.viewBox.split(' ').map(Number);
-  const scaleX = w / vbW;
-  const scaleY = h / vbH;
-
-  // Transform joint from shape coords to scene coords
-  // Card's top-left in scene coords = (x - w/2, y - h/2)
-  const jointSceneX = (x - w / 2) + (shape.jointX - vbX) * scaleX;
-  const jointSceneY = (y - h / 2) + (shape.jointY - vbY) * scaleY;
-
-  return { connectX: jointSceneX, connectY: jointSceneY, sidearm: shape.sidearm };
-}
 
 const ZONE_TINTS = {
   MEDIA:    { fill: 'rgba(79,184,212,0.05)',  stroke: '#4FB8D4' },
@@ -84,7 +56,10 @@ export default function SchlenkBenchScene(props) {
     grouped[z].push(el.id);
   }
 
-  // Inline position helper — uses zoneLayout ZONES directly for any zone
+  // Inline position helper — uses zoneLayout ZONES directly for any zone.
+  // Per-row X offset spreads every row across a DISTINCT lane within the cell,
+  // so each flask's vertical cyan drop never shares an X with another row's
+  // flask. Lanes are evenly distributed across ±cellW/3 from cell center.
   function posInZone(zoneKey, i, total) {
     const zone = ZONES[zoneKey];
     if (!zone) return null;
@@ -94,8 +69,12 @@ export default function SchlenkBenchScene(props) {
     const row = Math.floor(i / cols);
     const cellW = zone.w / cols;
     const cellH = zone.h / rows;
+    // Row r in [0..rows-1] gets a unique lane offset in [-cellW/3, +cellW/3].
+    // Lane spacing = (2·cellW/3) / (rows-1). For rows=4 this is ~22% of cellW —
+    // still larger than a flask body, so drops pass between upper-row flasks.
+    const laneOffset = rows > 1 ? (row / (rows - 1) - 0.5) * (cellW * 2 / 3) : 0;
     return {
-      x: zone.x + col * cellW + cellW / 2,
+      x: zone.x + col * cellW + cellW / 2 + laneOffset,
       y: zone.y + row * cellH + cellH / 2,
     };
   }
@@ -144,12 +123,13 @@ export default function SchlenkBenchScene(props) {
           );
         })}
 
-        {/* Central spine per zone + horizontal branches to each flask.
-            Spine runs vertically at a column-BOUNDARY x (never through a flask).
-            An inverted-L connector bridges the manifold port down to spine top.
-            Each flask has a short horizontal branch from its joint out to the spine. */}
+        {/* Per-zone header rail + per-flask vertical drops.
+            Header: horizontal rail at the top of the zone, fed by an inverted-L
+            from the manifold port. Each flask has its OWN vertical cyan drop
+            from the header down to its flask-top joint. Brick-layout positioning
+            (see posInZone) guarantees lower-row drops pass BETWEEN upper-row
+            flasks — no cyan line ever crosses glassware. */}
         {(() => {
-          // Group positioned cards by zone so we know how many per zone → cols
           const byZone = {};
           for (const card of positionedCards) {
             (byZone[card.zoneKey] ||= []).push(card);
@@ -158,70 +138,48 @@ export default function SchlenkBenchScene(props) {
           for (const [zoneKey, cards] of Object.entries(byZone)) {
             const zone = ZONES[zoneKey];
             if (!zone) continue;
-            const total = cards.length;
-            const cols = Math.ceil(Math.sqrt(total)) || 1;
-            // Spine at a column-boundary to avoid crossing any card column
-            const spineX = zone.x + (zone.w / cols) * Math.floor(cols / 2);
             const portX = PORT_X[zone.portId];
-            // Collect per-card joint points so we can scope the spine's vertical extent
-            const jointPoints = cards.map(c => {
-              const pt = getConnectorPoint(c.el, c.x, c.y, c.size);
-              return { ...c, jointX: pt.connectX, jointY: pt.connectY };
-            });
-            const topJointY = Math.min(...jointPoints.map(p => p.jointY));
-            const bottomJointY = Math.max(...jointPoints.map(p => p.jointY));
-            const spineTop = zone.y + 4;
-            const spineBottom = bottomJointY;
+            const headerY = zone.y - 10;  // just above zone top, inside manifold strip
+            const dropXs = cards.map(c => c.x);
+            const railLeft = Math.min(...dropXs, portX ?? dropXs[0]);
+            const railRight = Math.max(...dropXs, portX ?? dropXs[0]);
 
-            // 1) Manifold → spine-top inverted-L (port drop → horizontal jog → spine top)
+            // Manifold-port drop into header rail
             if (portX !== undefined) {
-              const kinkY = zone.y - 12; // just above zone top
               nodes.push(
-                <g key={`manifold-spine-${zoneKey}`} opacity="0.8">
-                  {/* Double-stroke drop from manifold port to kink */}
-                  <line x1={portX} y1="72" x2={portX} y2={kinkY} stroke="#4FB8D4" strokeWidth="2.4" />
-                  <line x1={portX} y1="72" x2={portX} y2={kinkY} stroke="rgba(255,255,255,0.35)" strokeWidth="0.6" />
-                  {/* Horizontal jog to align with zone spine */}
-                  <line x1={portX} y1={kinkY} x2={spineX} y2={kinkY} stroke="#4FB8D4" strokeWidth="2.4" />
-                  <line x1={portX} y1={kinkY} x2={spineX} y2={kinkY} stroke="rgba(255,255,255,0.35)" strokeWidth="0.6" />
-                  {/* Drop from kink into spine top */}
-                  <line x1={spineX} y1={kinkY} x2={spineX} y2={spineTop} stroke="#4FB8D4" strokeWidth="2.4" />
-                  <line x1={spineX} y1={kinkY} x2={spineX} y2={spineTop} stroke="rgba(255,255,255,0.35)" strokeWidth="0.6" />
-                  {/* Ground-glass joint where manifold tubing enters the zone spine */}
-                  <rect x={spineX - 4} y={spineTop - 2} width="8" height="5"
-                        fill="rgba(192,212,219,0.5)" stroke="#4FB8D4" strokeWidth="0.6" />
-                  <line x1={spineX - 4} y1={spineTop + 0.5} x2={spineX + 4} y2={spineTop + 0.5}
-                        stroke="rgba(192,212,219,0.8)" strokeWidth="0.3" />
+                <g key={`feed-${zoneKey}`} opacity="0.85">
+                  <line x1={portX} y1="72" x2={portX} y2={headerY} stroke="#4FB8D4" strokeWidth="2.4" />
+                  <line x1={portX} y1="72" x2={portX} y2={headerY} stroke="rgba(255,255,255,0.35)" strokeWidth="0.6" />
                 </g>
               );
             }
 
-            // 2) Vertical spine spanning the zone's joint rows
+            // Horizontal header rail across all drop columns
             nodes.push(
-              <g key={`spine-${zoneKey}`} opacity="0.8">
-                <line x1={spineX} y1={spineTop + 5} x2={spineX} y2={spineBottom}
+              <g key={`rail-${zoneKey}`} opacity="0.85">
+                <line x1={railLeft} y1={headerY} x2={railRight} y2={headerY}
                       stroke="#4FB8D4" strokeWidth="2.4" />
-                <line x1={spineX} y1={spineTop + 5} x2={spineX} y2={spineBottom}
+                <line x1={railLeft} y1={headerY} x2={railRight} y2={headerY}
                       stroke="rgba(255,255,255,0.35)" strokeWidth="0.6" />
               </g>
             );
 
-            // 3) Per-card horizontal branches from joint to spine at joint's y
-            for (const p of jointPoints) {
-              const [bx1, bx2] = p.jointX < spineX ? [p.jointX, spineX] : [spineX, p.jointX];
+            // Per-flask vertical drop from rail to flask-top joint
+            for (const c of cards) {
+              const flaskTopY = c.y - c.cardH / 2 - 2;
               nodes.push(
-                <g key={`branch-${p.svcId}`} opacity="0.8">
-                  {/* Horizontal branch */}
-                  <line x1={bx1} y1={p.jointY} x2={bx2} y2={p.jointY}
+                <g key={`drop-${c.svcId}`} opacity="0.85">
+                  {/* Vertical cyan drop */}
+                  <line x1={c.x} y1={headerY} x2={c.x} y2={flaskTopY}
                         stroke="#4FB8D4" strokeWidth="2.2" />
-                  <line x1={bx1} y1={p.jointY} x2={bx2} y2={p.jointY}
+                  <line x1={c.x} y1={headerY} x2={c.x} y2={flaskTopY}
                         stroke="rgba(255,255,255,0.35)" strokeWidth="0.5" />
-                  {/* T-joint nub where branch meets spine */}
-                  <circle cx={spineX} cy={p.jointY} r="2" fill="#4FB8D4" stroke="rgba(8,16,26,0.8)" strokeWidth="0.4" />
-                  {/* Ground-glass joint at the flask end */}
-                  <rect x={p.jointX - 4} y={p.jointY - 2} width="8" height="5"
+                  {/* T-joint where drop meets header */}
+                  <circle cx={c.x} cy={headerY} r="2" fill="#4FB8D4" stroke="rgba(8,16,26,0.8)" strokeWidth="0.4" />
+                  {/* Ground-glass joint stub at flask top */}
+                  <rect x={c.x - 4} y={flaskTopY - 1} width="8" height="5"
                         fill="rgba(192,212,219,0.5)" stroke="#4FB8D4" strokeWidth="0.6" />
-                  <line x1={p.jointX - 4} y1={p.jointY + 0.5} x2={p.jointX + 4} y2={p.jointY + 0.5}
+                  <line x1={c.x - 4} y1={flaskTopY + 1.5} x2={c.x + 4} y2={flaskTopY + 1.5}
                         stroke="rgba(192,212,219,0.8)" strokeWidth="0.3" />
                 </g>
               );
