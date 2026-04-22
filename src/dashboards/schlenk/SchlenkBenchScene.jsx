@@ -3,7 +3,7 @@ import SchlenkManifold from './SchlenkManifold.jsx';
 import SchlenkCard from './SchlenkCard.jsx';
 import SchlenkBotRack from './SchlenkBotRack.jsx';
 import SchlenkDetailPanel from './SchlenkDetailPanel.jsx';
-import { SCENE_W, SCENE_H, ZONES, listZones } from './zoneLayout.js';
+import { SCENE_W, SCENE_H, ZONES, PORT_X, listZones } from './zoneLayout.js';
 import { SERVICE_TO_ZONE, groupServicesByZone, positionForService } from './serviceLayout.js';
 import { getServiceGlassware } from './serviceGlassware.js';
 import { getShape } from './glasswareRegistry.js';
@@ -153,34 +153,91 @@ export default function SchlenkBenchScene(props) {
           );
         })}
 
-        {/* Per-card glass connectors: a short ground-glass-joint stub at each card's
-            top joint (or sidearm for flasks with one). Implies connection to the
-            manifold above without drawing long tubing that would cross other flasks. */}
-        {positionedCards.map(({ svcId, el, x, y, size, zoneKey }) => {
-          const pt = getConnectorPoint(el, x, y, size);
-          const zone = ZONES[zoneKey];
-          // Extend stub up to zone top (within card's column, no horizontal crossing)
-          const stubTop = zone ? zone.y : pt.connectY - 10;
-          return (
-            <g key={`connector-${svcId}`} opacity="0.75">
-              {/* Glass tubing segment (double-stroke: outer borosilicate + inner sheen) */}
-              <line x1={pt.connectX} y1={stubTop} x2={pt.connectX} y2={pt.connectY}
-                    stroke="#4FB8D4" strokeWidth="2.4" />
-              <line x1={pt.connectX} y1={stubTop} x2={pt.connectX} y2={pt.connectY}
-                    stroke="rgba(255,255,255,0.35)" strokeWidth="0.6" />
-              {/* Ground-glass joint at the connection point (hashed rect) */}
-              <rect x={pt.connectX - 4} y={pt.connectY - 2} width="8" height="5"
-                    fill="rgba(192,212,219,0.5)" stroke="#4FB8D4" strokeWidth="0.6" />
-              <line x1={pt.connectX - 4} y1={pt.connectY + 0.5} x2={pt.connectX + 4} y2={pt.connectY + 0.5}
-                    stroke="rgba(192,212,219,0.8)" strokeWidth="0.3" />
-              {/* Ground-glass joint at the zone-top end (manifold-side connector) */}
-              <rect x={pt.connectX - 4} y={stubTop - 3} width="8" height="5"
-                    fill="rgba(192,212,219,0.5)" stroke="#4FB8D4" strokeWidth="0.6" />
-              <line x1={pt.connectX - 4} y1={stubTop - 0.5} x2={pt.connectX + 4} y2={stubTop - 0.5}
-                    stroke="rgba(192,212,219,0.8)" strokeWidth="0.3" />
-            </g>
-          );
-        })}
+        {/* Central spine per zone + horizontal branches to each flask.
+            Spine runs vertically at a column-BOUNDARY x (never through a flask).
+            An inverted-L connector bridges the manifold port down to spine top.
+            Each flask has a short horizontal branch from its joint out to the spine. */}
+        {(() => {
+          // Group positioned cards by zone so we know how many per zone → cols
+          const byZone = {};
+          for (const card of positionedCards) {
+            (byZone[card.zoneKey] ||= []).push(card);
+          }
+          const nodes = [];
+          for (const [zoneKey, cards] of Object.entries(byZone)) {
+            const zone = ZONES[zoneKey];
+            if (!zone) continue;
+            const total = cards.length;
+            const cols = Math.ceil(Math.sqrt(total)) || 1;
+            // Spine at a column-boundary to avoid crossing any card column
+            const spineX = zone.x + (zone.w / cols) * Math.floor(cols / 2);
+            const portX = PORT_X[zone.portId];
+            // Collect per-card joint points so we can scope the spine's vertical extent
+            const jointPoints = cards.map(c => {
+              const pt = getConnectorPoint(c.el, c.x, c.y, c.size);
+              return { ...c, jointX: pt.connectX, jointY: pt.connectY };
+            });
+            const topJointY = Math.min(...jointPoints.map(p => p.jointY));
+            const bottomJointY = Math.max(...jointPoints.map(p => p.jointY));
+            const spineTop = zone.y + 4;
+            const spineBottom = bottomJointY;
+
+            // 1) Manifold → spine-top inverted-L (port drop → horizontal jog → spine top)
+            if (portX !== undefined) {
+              const kinkY = zone.y - 12; // just above zone top
+              nodes.push(
+                <g key={`manifold-spine-${zoneKey}`} opacity="0.8">
+                  {/* Double-stroke drop from manifold port to kink */}
+                  <line x1={portX} y1="72" x2={portX} y2={kinkY} stroke="#4FB8D4" strokeWidth="2.4" />
+                  <line x1={portX} y1="72" x2={portX} y2={kinkY} stroke="rgba(255,255,255,0.35)" strokeWidth="0.6" />
+                  {/* Horizontal jog to align with zone spine */}
+                  <line x1={portX} y1={kinkY} x2={spineX} y2={kinkY} stroke="#4FB8D4" strokeWidth="2.4" />
+                  <line x1={portX} y1={kinkY} x2={spineX} y2={kinkY} stroke="rgba(255,255,255,0.35)" strokeWidth="0.6" />
+                  {/* Drop from kink into spine top */}
+                  <line x1={spineX} y1={kinkY} x2={spineX} y2={spineTop} stroke="#4FB8D4" strokeWidth="2.4" />
+                  <line x1={spineX} y1={kinkY} x2={spineX} y2={spineTop} stroke="rgba(255,255,255,0.35)" strokeWidth="0.6" />
+                  {/* Ground-glass joint where manifold tubing enters the zone spine */}
+                  <rect x={spineX - 4} y={spineTop - 2} width="8" height="5"
+                        fill="rgba(192,212,219,0.5)" stroke="#4FB8D4" strokeWidth="0.6" />
+                  <line x1={spineX - 4} y1={spineTop + 0.5} x2={spineX + 4} y2={spineTop + 0.5}
+                        stroke="rgba(192,212,219,0.8)" strokeWidth="0.3" />
+                </g>
+              );
+            }
+
+            // 2) Vertical spine spanning the zone's joint rows
+            nodes.push(
+              <g key={`spine-${zoneKey}`} opacity="0.8">
+                <line x1={spineX} y1={spineTop + 5} x2={spineX} y2={spineBottom}
+                      stroke="#4FB8D4" strokeWidth="2.4" />
+                <line x1={spineX} y1={spineTop + 5} x2={spineX} y2={spineBottom}
+                      stroke="rgba(255,255,255,0.35)" strokeWidth="0.6" />
+              </g>
+            );
+
+            // 3) Per-card horizontal branches from joint to spine at joint's y
+            for (const p of jointPoints) {
+              const [bx1, bx2] = p.jointX < spineX ? [p.jointX, spineX] : [spineX, p.jointX];
+              nodes.push(
+                <g key={`branch-${p.svcId}`} opacity="0.8">
+                  {/* Horizontal branch */}
+                  <line x1={bx1} y1={p.jointY} x2={bx2} y2={p.jointY}
+                        stroke="#4FB8D4" strokeWidth="2.2" />
+                  <line x1={bx1} y1={p.jointY} x2={bx2} y2={p.jointY}
+                        stroke="rgba(255,255,255,0.35)" strokeWidth="0.5" />
+                  {/* T-joint nub where branch meets spine */}
+                  <circle cx={spineX} cy={p.jointY} r="2" fill="#4FB8D4" stroke="rgba(8,16,26,0.8)" strokeWidth="0.4" />
+                  {/* Ground-glass joint at the flask end */}
+                  <rect x={p.jointX - 4} y={p.jointY - 2} width="8" height="5"
+                        fill="rgba(192,212,219,0.5)" stroke="#4FB8D4" strokeWidth="0.6" />
+                  <line x1={p.jointX - 4} y1={p.jointY + 0.5} x2={p.jointX + 4} y2={p.jointY + 0.5}
+                        stroke="rgba(192,212,219,0.8)" strokeWidth="0.3" />
+                </g>
+              );
+            }
+          }
+          return nodes;
+        })()}
 
         {positionedCards.map(({ svcId, el, x, y, size, zoneKey }) => (
           <SchlenkCard
