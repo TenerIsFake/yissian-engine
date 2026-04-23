@@ -19,7 +19,9 @@ import VacPump from './apparatus/VacPump.jsx';
 import ColdTrap from './apparatus/ColdTrap.jsx';
 import LectureBottle from './apparatus/LectureBottle.jsx';
 import UTubeManometer from './apparatus/UTubeManometer.jsx';
+import GlasswareRender from './GlasswareRender.jsx';
 import { SERVICE_TO_ZONE } from './serviceLayout.js';
+import { GLASSWARE_BY_SERVICE, DEFAULT_SHAPE } from './serviceGlassware.js';
 
 // Services that live on SRV-2; anything not listed is treated as SRV-1.
 const SRV2_SERVICES = new Set([
@@ -327,13 +329,17 @@ export default function SchlenkCastScene({ statsMap = {}, elementRegistry = [] }
                   stroke="#4FB8D4" strokeWidth="1.4" />
             {services.map((el, i) => {
               const pos = placeInZone(z, i, services.length);
-              const R = services.length > 10 ? 9 : services.length > 5 ? 11 : 13;
+              const W = services.length > 10 ? 18 : services.length > 5 ? 24 : 30;
+              const H = Math.round(W * 1.5);
+              const shape = GLASSWARE_BY_SERVICE[el.id] || DEFAULT_SHAPE;
               return (
                 <g key={el.id}>
-                  <line x1={pos.x} y1={z.subHeaderY} x2={pos.x} y2={pos.y - R - 2}
+                  <line x1={pos.x} y1={z.subHeaderY} x2={pos.x} y2={pos.y - H / 2}
                         stroke="#4FB8D4" strokeWidth="1.1" />
-                  <circle cx={pos.x} cy={pos.y} r={R}
-                          fill="rgba(79,184,212,0.12)" stroke="#4FB8D4" strokeWidth="1.3" />
+                  <g transform={`translate(${pos.x - W / 2}, ${pos.y - H / 2})`}>
+                    <GlasswareRender shape={shape} width={W} height={H}
+                      fillColor="#4FB8D4" fillPercent={50} outlineColor="#4FB8D4" />
+                  </g>
                 </g>
               );
             })}
@@ -360,13 +366,17 @@ export default function SchlenkCastScene({ statsMap = {}, elementRegistry = [] }
                   stroke="#FFA940" strokeWidth="1.4" />
             {services.map((el, i) => {
               const pos = placeInZone(z, i, services.length);
-              const R = services.length > 10 ? 9 : services.length > 5 ? 11 : 13;
+              const W = services.length > 10 ? 18 : services.length > 5 ? 24 : 30;
+              const H = Math.round(W * 1.5);
+              const shape = GLASSWARE_BY_SERVICE[el.id] || DEFAULT_SHAPE;
               return (
                 <g key={el.id}>
-                  <line x1={pos.x} y1={z.subHeaderY} x2={pos.x} y2={pos.y - R - 2}
+                  <line x1={pos.x} y1={z.subHeaderY} x2={pos.x} y2={pos.y - H / 2}
                         stroke="#FFA940" strokeWidth="1.1" />
-                  <circle cx={pos.x} cy={pos.y} r={R}
-                          fill="rgba(255,169,64,0.12)" stroke="#FFA940" strokeWidth="1.3" />
+                  <g transform={`translate(${pos.x - W / 2}, ${pos.y - H / 2})`}>
+                    <GlasswareRender shape={shape} width={W} height={H}
+                      fillColor="#FFA940" fillPercent={50} outlineColor="#FFA940" />
+                  </g>
                 </g>
               );
             })}
