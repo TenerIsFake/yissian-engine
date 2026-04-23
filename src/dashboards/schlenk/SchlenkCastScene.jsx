@@ -19,6 +19,45 @@ import VacPump from './apparatus/VacPump.jsx';
 import ColdTrap from './apparatus/ColdTrap.jsx';
 import LectureBottle from './apparatus/LectureBottle.jsx';
 import UTubeManometer from './apparatus/UTubeManometer.jsx';
+import { SERVICE_TO_ZONE } from './serviceLayout.js';
+
+// Services that live on SRV-2; anything not listed is treated as SRV-1.
+const SRV2_SERVICES = new Set([
+  'overseerr', 'tunarr', 'flaresolverr', 'musicbrainz', 'ntfy',
+  'uptime-kuma', 'obsidian-remote', 'freshrss', 'braintree-web',
+]);
+
+// Map the shared SERVICE_TO_ZONE category into this scene's cast-specific zone
+// slots. SRV-1 has MEDIA/LIBRARY/INFRA; SRV-2 has MEDIA/INFRA/TOOLS.
+function castZoneFor(serverKey, category) {
+  if (serverKey === 'srv1') {
+    if (category === 'MEDIA') return 'MEDIA';
+    if (category === 'LIBRARY') return 'LIBRARY';
+    if (category === 'PIPELINE') return 'LIBRARY';
+    return 'INFRA';  // INFRA, TOOLS, BOTS, unknown → INFRA bucket
+  }
+  if (category === 'MEDIA') return 'MEDIA';
+  if (category === 'INFRA') return 'INFRA';
+  return 'TOOLS';  // TOOLS, PIPELINE, LIBRARY, unknown → TOOLS bucket
+}
+
+// Brick-lane flask placement inside a zone rectangle. Each row gets a distinct
+// horizontal lane so drops from the sub-header never pass through another flask.
+function placeInZone(zone, index, total) {
+  const cols = Math.max(1, Math.ceil(Math.sqrt(total)));
+  const rows = Math.max(1, Math.ceil(total / cols));
+  const col = index % cols;
+  const row = Math.floor(index / cols);
+  const innerW = zone.w - 30;       // 15px padding each side
+  const innerH = zone.h - 45;       // leave room for sub-header (top) + label (bottom)
+  const cellW = innerW / cols;
+  const cellH = innerH / Math.max(1, rows);
+  const laneOffset = rows > 1 ? (row / (rows - 1) - 0.5) * (cellW * 2 / 3) : 0;
+  return {
+    x: zone.x + 15 + col * cellW + cellW / 2 + laneOffset,
+    y: zone.subHeaderY + 25 + row * cellH + cellH / 2,
+  };
+}
 
 async function fetchSrv1Glances() {
   const results = { cpu: 0, ram: 0, downloadMbps: 1, uploadMbps: 1, pingMs: 0, driveC: 0, driveJ: 0, driveQ: 0, driveT: 0 };
@@ -267,35 +306,81 @@ export default function SchlenkCastScene({ statsMap = {}, elementRegistry = [] }
         );
       })}
 
-      {/* ═ Zones ═ */}
-      {Object.entries(SRV1_ZONES).map(([name, z]) => (
-        <g key={`srv1-${name}`}>
-          <rect x={z.x} y={z.y} width={z.w} height={z.h}
-                fill="rgba(79,184,212,0.04)" stroke="rgba(79,184,212,0.3)"
-                strokeDasharray="3 3" rx="4" />
-          <text x={z.x + 8} y={z.y + z.h - 8} fontFamily="monospace" fontSize="7"
-                fill="rgba(79,184,212,0.7)" letterSpacing="0.15em">{name} · SRV-1</text>
-          {/* Trunk: straight vertical from stopcock to sub-header */}
-          <line x1={z.trunkX} y1={VAC_Y + 4} x2={z.trunkX} y2={z.subHeaderY}
-                stroke="#4FB8D4" strokeWidth="1.6" />
-          {/* Sub-header */}
-          <line x1={z.x + 15} y1={z.subHeaderY} x2={z.x + z.w - 15} y2={z.subHeaderY}
-                stroke="#4FB8D4" strokeWidth="1.4" />
-        </g>
-      ))}
-      {Object.entries(SRV2_ZONES).map(([name, z]) => (
-        <g key={`srv2-${name}`}>
-          <rect x={z.x} y={z.y} width={z.w} height={z.h}
-                fill="rgba(255,169,64,0.04)" stroke="rgba(255,169,64,0.3)"
-                strokeDasharray="3 3" rx="4" />
-          <text x={z.x + 8} y={z.y + z.h - 8} fontFamily="monospace" fontSize="7"
-                fill="rgba(255,169,64,0.7)" letterSpacing="0.15em">{name} · SRV-2</text>
-          <line x1={z.trunkX} y1={VAC_Y + 4} x2={z.trunkX} y2={z.subHeaderY}
-                stroke="#FFA940" strokeWidth="1.6" />
-          <line x1={z.x + 15} y1={z.subHeaderY} x2={z.x + z.w - 15} y2={z.subHeaderY}
-                stroke="#FFA940" strokeWidth="1.4" />
-        </g>
-      ))}
+      {/* ═ Zones — draw box, trunk, sub-header, and per-service flasks ═ */}
+      {Object.entries(SRV1_ZONES).map(([name, z]) => {
+        const services = (elementRegistry || []).filter(el => {
+          const owner = SRV2_SERVICES.has(el.id) ? 'srv2' : 'srv1';
+          if (owner !== 'srv1') return false;
+          const cat = SERVICE_TO_ZONE[el.id];
+          return castZoneFor('srv1', cat) === name;
+        });
+        return (
+          <g key={`srv1-${name}`}>
+            <rect x={z.x} y={z.y} width={z.w} height={z.h}
+                  fill="rgba(79,184,212,0.04)" stroke="rgba(79,184,212,0.3)"
+                  strokeDasharray="3 3" rx="4" />
+            <text x={z.x + 8} y={z.y + z.h - 8} fontFamily="monospace" fontSize="7"
+                  fill="rgba(79,184,212,0.7)" letterSpacing="0.15em">{name} · SRV-1</text>
+            <line x1={z.trunkX} y1={VAC_Y + 4} x2={z.trunkX} y2={z.subHeaderY}
+                  stroke="#4FB8D4" strokeWidth="1.6" />
+            <line x1={z.x + 15} y1={z.subHeaderY} x2={z.x + z.w - 15} y2={z.subHeaderY}
+                  stroke="#4FB8D4" strokeWidth="1.4" />
+            {services.map((el, i) => {
+              const pos = placeInZone(z, i, services.length);
+              const R = services.length > 10 ? 9 : services.length > 5 ? 11 : 13;
+              return (
+                <g key={el.id}>
+                  <line x1={pos.x} y1={z.subHeaderY} x2={pos.x} y2={pos.y - R - 2}
+                        stroke="#4FB8D4" strokeWidth="1.1" />
+                  <circle cx={pos.x} cy={pos.y} r={R}
+                          fill="rgba(79,184,212,0.12)" stroke="#4FB8D4" strokeWidth="1.3" />
+                  <text x={pos.x} y={pos.y + 3} fontFamily="monospace"
+                        fontSize={R > 11 ? 8 : 7} fill="#4FB8D4" textAnchor="middle">
+                    {el.symbol || el.id}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        );
+      })}
+      {Object.entries(SRV2_ZONES).map(([name, z]) => {
+        const services = (elementRegistry || []).filter(el => {
+          const owner = SRV2_SERVICES.has(el.id) ? 'srv2' : 'srv1';
+          if (owner !== 'srv2') return false;
+          const cat = SERVICE_TO_ZONE[el.id];
+          return castZoneFor('srv2', cat) === name;
+        });
+        return (
+          <g key={`srv2-${name}`}>
+            <rect x={z.x} y={z.y} width={z.w} height={z.h}
+                  fill="rgba(255,169,64,0.04)" stroke="rgba(255,169,64,0.3)"
+                  strokeDasharray="3 3" rx="4" />
+            <text x={z.x + 8} y={z.y + z.h - 8} fontFamily="monospace" fontSize="7"
+                  fill="rgba(255,169,64,0.7)" letterSpacing="0.15em">{name} · SRV-2</text>
+            <line x1={z.trunkX} y1={VAC_Y + 4} x2={z.trunkX} y2={z.subHeaderY}
+                  stroke="#FFA940" strokeWidth="1.6" />
+            <line x1={z.x + 15} y1={z.subHeaderY} x2={z.x + z.w - 15} y2={z.subHeaderY}
+                  stroke="#FFA940" strokeWidth="1.4" />
+            {services.map((el, i) => {
+              const pos = placeInZone(z, i, services.length);
+              const R = services.length > 10 ? 9 : services.length > 5 ? 11 : 13;
+              return (
+                <g key={el.id}>
+                  <line x1={pos.x} y1={z.subHeaderY} x2={pos.x} y2={pos.y - R - 2}
+                        stroke="#FFA940" strokeWidth="1.1" />
+                  <circle cx={pos.x} cy={pos.y} r={R}
+                          fill="rgba(255,169,64,0.12)" stroke="#FFA940" strokeWidth="1.3" />
+                  <text x={pos.x} y={pos.y + 3} fontFamily="monospace"
+                        fontSize={R > 11 ? 8 : 7} fill="#FFA940" textAnchor="middle">
+                    {el.symbol || el.id}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        );
+      })}
 
       {/* ═ Manometer (centered, v6 dimensions) ═ */}
       <UTubeManometer
