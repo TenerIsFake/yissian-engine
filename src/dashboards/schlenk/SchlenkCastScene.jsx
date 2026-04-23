@@ -334,10 +334,6 @@ export default function SchlenkCastScene({ statsMap = {}, elementRegistry = [] }
                         stroke="#4FB8D4" strokeWidth="1.1" />
                   <circle cx={pos.x} cy={pos.y} r={R}
                           fill="rgba(79,184,212,0.12)" stroke="#4FB8D4" strokeWidth="1.3" />
-                  <text x={pos.x} y={pos.y + 3} fontFamily="monospace"
-                        fontSize={R > 11 ? 8 : 7} fill="#4FB8D4" textAnchor="middle">
-                    {el.symbol || el.id}
-                  </text>
                 </g>
               );
             })}
@@ -371,10 +367,6 @@ export default function SchlenkCastScene({ statsMap = {}, elementRegistry = [] }
                         stroke="#FFA940" strokeWidth="1.1" />
                   <circle cx={pos.x} cy={pos.y} r={R}
                           fill="rgba(255,169,64,0.12)" stroke="#FFA940" strokeWidth="1.3" />
-                  <text x={pos.x} y={pos.y + 3} fontFamily="monospace"
-                        fontSize={R > 11 ? 8 : 7} fill="#FFA940" textAnchor="middle">
-                    {el.symbol || el.id}
-                  </text>
                 </g>
               );
             })}
