@@ -101,6 +101,7 @@ const OVERRIDES = {
   "i've":     'iss',
   "you've":   'yriss',
   'error':    'iss',
+  "y'all":    'yinz',
 };
 
 /**

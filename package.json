@@ -1,6 +1,6 @@
 {
   "name": "yissian-engine",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Yissian dialect text transformer — preserve onset, replace vowel nucleus with -iss / -riss / -rid / -issin'",
   "type": "module",
   "main": "index.js",
