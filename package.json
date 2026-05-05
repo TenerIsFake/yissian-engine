@@ -1,0 +1,23 @@
+{
+  "name": "yissian-engine",
+  "version": "1.0.0",
+  "description": "Yissian dialect text transformer — preserve onset, replace vowel nucleus with -iss / -riss / -rid / -issin'",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./overrides": "./yissian.json"
+  },
+  "files": [
+    "index.js",
+    "yissian.json"
+  ],
+  "keywords": ["yissian", "dialect", "translator", "text", "linguistics"],
+  "author": "TenerIsFake",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TenerIsFake/yissian-engine.git"
+  },
+  "homepage": "https://github.com/TenerIsFake/yissian-engine#readme"
+}
