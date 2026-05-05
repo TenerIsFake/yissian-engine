@@ -12,12 +12,18 @@
     "index.js",
     "yissian.json"
   ],
-  "keywords": ["yissian", "dialect", "translator", "text", "linguistics"],
+  "keywords": [
+    "yissian",
+    "dialect",
+    "translator",
+    "text",
+    "linguistics"
+  ],
   "author": "TenerIsFake",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/TenerIsFake/yissian-engine.git"
+    "url": "git+https://github.com/TenerIsFake/yissian-engine.git"
   },
   "homepage": "https://github.com/TenerIsFake/yissian-engine#readme"
 }
