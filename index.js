@@ -109,8 +109,14 @@ const OVERRIDES = {
  * @param {Record<string, string>} map — lowercase source → lowercase Yissian
  */
 export function mergeOverrides(map) {
-  if (!map || typeof map !== 'object') return;
-  Object.assign(OVERRIDES, map);
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return;
+  const VALID_KEY = /^[a-z][a-z'\-]{0,49}$/;
+  const VALID_VAL = /^[a-z'\-]{1,60}$/;
+  for (const [k, v] of Object.entries(map)) {
+    if (VALID_KEY.test(k) && typeof v === 'string' && VALID_VAL.test(v)) {
+      OVERRIDES[k] = v;
+    }
+  }
 }
 
 // ── Vowel nucleus sets ────────────────────────────────────────────────────────
