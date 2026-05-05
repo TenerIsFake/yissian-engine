@@ -4,9 +4,21 @@ import ThemeSelector from './ThemeSelector.jsx';
 import RandomizerButton from './RandomizerButton.jsx';
 import LiveClock from './LiveClock.jsx';
 import { getStatusTier } from '../utils/constants.js';
+import { useDialect } from '../context/DialectContext.jsx';
 
 const SEERR_URL = 'http://10.0.0.155:5055';
 const MUSIC_REQUEST_URL = 'http://10.0.0.195:5050';
+
+const btnStyle = {
+  fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.12em',
+  padding: '5px 10px', borderRadius: 4, textDecoration: 'none',
+  border: '1px solid rgba(6,182,212,0.3)',
+  background: 'rgba(6,182,212,0.06)', color: '#38bdf8',
+  whiteSpace: 'nowrap', cursor: 'pointer',
+  transition: 'background 0.2s, box-shadow 0.2s',
+};
+const hoverIn = e => { e.currentTarget.style.background = 'rgba(6,182,212,0.15)'; e.currentTarget.style.boxShadow = '0 0 8px rgba(6,182,212,0.3)'; };
+const hoverOut = e => { e.currentTarget.style.background = 'rgba(6,182,212,0.06)'; e.currentTarget.style.boxShadow = 'none'; };
 
 const RequestButton = ({ href, children }) => (
   <a
@@ -14,22 +26,47 @@ const RequestButton = ({ href, children }) => (
     target="_blank"
     rel="noopener noreferrer"
     className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 focus-visible:outline-offset-2"
-    style={{
-      fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.12em',
-      padding: '5px 10px', borderRadius: 4, textDecoration: 'none',
-      border: '1px solid rgba(6,182,212,0.3)',
-      background: 'rgba(6,182,212,0.06)', color: '#38bdf8',
-      whiteSpace: 'nowrap',
-      transition: 'background 0.2s, box-shadow 0.2s',
-    }}
-    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(6,182,212,0.15)'; e.currentTarget.style.boxShadow = '0 0 8px rgba(6,182,212,0.3)'; }}
-    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(6,182,212,0.06)'; e.currentTarget.style.boxShadow = 'none'; }}
+    style={btnStyle}
+    onMouseEnter={hoverIn}
+    onMouseLeave={hoverOut}
   >
     {children}
   </a>
 );
 
-const PeriodicHeader = ({ globalTier, lastPolledAt, healthColor, dashboardMode, setDashboardMode, modeThemes, headerTitle, headerSubtitle }) => {
+const SearchButton = ({ onClick, children }) => (
+  <button
+    onClick={onClick}
+    className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 focus-visible:outline-offset-2"
+    style={btnStyle}
+    onMouseEnter={hoverIn}
+    onMouseLeave={hoverOut}
+  >
+    {children}
+  </button>
+);
+
+const DialectToggle = () => {
+  const { enabled, toggle } = useDialect();
+  return (
+    <button
+      onClick={toggle}
+      title={enabled ? 'Disable Yissian dialect' : 'Enable Yissian dialect'}
+      className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 focus-visible:outline-offset-2"
+      style={{
+        ...btnStyle,
+        color: enabled ? '#a78bfa' : 'rgba(255,255,255,0.3)',
+        border: `1px solid ${enabled ? 'rgba(167,139,250,0.4)' : 'rgba(255,255,255,0.1)'}`,
+        background: enabled ? 'rgba(167,139,250,0.1)' : 'rgba(255,255,255,0.03)',
+      }}
+    >
+      YISS
+    </button>
+  );
+};
+
+const PeriodicHeader = ({ globalTier, lastPolledAt, healthColor, dashboardMode, setDashboardMode, modeThemes, headerTitle, headerSubtitle, onSearchOpen }) => {
+  const { t } = useDialect();
   const now = new Date();
   const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   const tier = globalTier || getStatusTier(0);
@@ -44,18 +81,21 @@ const PeriodicHeader = ({ globalTier, lastPolledAt, healthColor, dashboardMode, 
     <header className="px-8 pt-6 pb-4 flex items-center justify-between border-b border-white/5">
       <div>
         <h1 className="text-2xl font-light tracking-tighter text-white">
-          {(headerTitle?.main) || 'ELEMENT_TABLE'}<span className="text-cyan-400 font-bold">{(headerTitle?.accent) || '.SYS'}</span>
+          {t(headerTitle?.main || 'ELEMENT_TABLE')}<span className="text-cyan-400 font-bold">{t(headerTitle?.accent || '.SYS')}</span>
         </h1>
         <p className="text-[9px] font-mono text-white/30 tracking-[0.3em] mt-0.5">
-          {(headerSubtitle || 'Period 4 ◆ Group {date} ◆ Homelab Services Dashboard').replace('{date}', dateStr)}
+          {t((headerSubtitle || 'Period 4 ◆ Group {date} ◆ Homelab Services Dashboard').replace('{date}', dateStr))}
         </p>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <RequestButton href={SEERR_URL}>Request MOVIES/TV</RequestButton>
-        <RequestButton href={MUSIC_REQUEST_URL}>Request Music</RequestButton>
+        <SearchButton onClick={() => onSearchOpen?.('ebook')}>{t('Request eBooks')}</SearchButton>
+        <SearchButton onClick={() => onSearchOpen?.('audiobook')}>{t('Request Audible')}</SearchButton>
+        <RequestButton href={SEERR_URL}>{t('Movies')} | {t('Shows')}</RequestButton>
+        <RequestButton href={MUSIC_REQUEST_URL}>{t('Request Music')}</RequestButton>
         <DashboardModeToggle mode={dashboardMode} setMode={setDashboardMode} />
         <ThemeSelector dashboardMode={dashboardMode} modeThemes={modeThemes} />
         <RandomizerButton dashboardMode={dashboardMode} setDashboardMode={setDashboardMode} />
+        <DialectToggle />
         <LiveClock />
         {lastPolledAt && (
           <span style={{ fontSize: 8, fontFamily: 'monospace', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.15em' }}>

@@ -7,6 +7,7 @@ import useQuoteHistory from './src/hooks/useQuoteHistory.js';
 import { PRIMARY_URL, SECONDARY_URL, POLL_MS, MONO, getStatusTier, defaultStats, safeHref } from './src/utils/constants.js';
 import MODE_REGISTRY from './src/modeRegistry.js';
 import { DashboardProvider } from './src/context/DashboardContext.jsx';
+import { DialectProvider } from './src/context/DialectContext.jsx';
 import ServiceDetailPanel from './src/components/ServiceDetailPanel.jsx';
 import PeriodicHeader from './src/components/PeriodicHeader.jsx';
 import { activeCATRef, ThemeContext } from './src/themes/ThemeContext.jsx';
@@ -29,7 +30,12 @@ import BOT_REGISTRY from './src/data/botRegistry.js';
 import CastLayout from './CastLayout.jsx';
 
 // Stable — URL search params don't change for the lifetime of the page
-const IS_CAST = new URLSearchParams(window.location.search).get('cast') === '1';
+const _URL_PARAMS = new URLSearchParams(window.location.search);
+const IS_CAST = _URL_PARAMS.get('cast') === '1';
+// Cast mode override: ?mode=SCHLENK forces the dashboard into SCHLENK (or any
+// other registered mode) at mount. Default when cast= is set but mode= is not
+// provided is SCHLENK (the bench-scene view is cast-optimized).
+const CAST_MODE_PARAM = (_URL_PARAMS.get('mode') || '').toUpperCase();
 
 // ─────────────────────────────────────────────
 // CONSTANTS
@@ -84,6 +90,11 @@ export default function App() {
 
   // ── Dashboard mode ──
   const [dashboardMode, setDashboardModeState] = useState(() => {
+    // Cast mode: URL ?mode=X wins, else default to SCHLENK for cast sessions
+    if (IS_CAST) {
+      if (CAST_MODE_PARAM && Object.keys(MODE_THEMES).includes(CAST_MODE_PARAM)) return CAST_MODE_PARAM;
+      return 'SCHLENK';
+    }
     const stored = localStorage.getItem('jenkins-media-dashboard-mode');
     return Object.keys(MODE_THEMES).includes(stored) ? stored : 'CHEM';
   });
@@ -196,6 +207,7 @@ export default function App() {
     musicbrainz_db: 'musicbrainz-local', gluetun: 'protonvpn',
     restic: 'restic-sidecar', hue: 'hue-bridge',
     terminal: 'claude-terminal', obsidian: 'obsidian-remote',
+    queue_manager: 'queue-manager',
   }), []);
   const [sseServiceStats, setSseServiceStats] = useState({});
   const [vpnForwardedPort, setVpnForwardedPort] = useState(null);
@@ -309,13 +321,16 @@ export default function App() {
   // ── Cast mode: render stripped-down full-screen layout for Chromecast/Nest Hub ──
   if (IS_CAST) {
     return (
-      <DashboardProvider value={dashboardCtx}>
-        <CastLayout />
-      </DashboardProvider>
+      <DialectProvider>
+        <DashboardProvider value={dashboardCtx}>
+          <CastLayout />
+        </DashboardProvider>
+      </DialectProvider>
     );
   }
 
   return (
+    <DialectProvider>
     <DashboardProvider value={dashboardCtx}>
       <div className="min-h-screen periodic-dot-grid overflow-x-hidden" style={{ background: 'var(--bg-base, #0F1117)' }}>
 
@@ -452,5 +467,6 @@ export default function App() {
 
       </div>
     </DashboardProvider>
+    </DialectProvider>
   );
 }
