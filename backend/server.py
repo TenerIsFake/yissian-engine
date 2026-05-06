@@ -6,8 +6,11 @@ import sys
 import json
 import re
 import time
+import threading
+import queue
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests as http_requests
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -49,11 +52,999 @@ CF_BASE = "https://api.cloudflare.com/client/v4"
 TAUTULLI_API_KEY = os.environ.get("TAUTULLI_API_KEY", "")
 BAZARR_URL = os.environ.get("BAZARR_URL", "http://bazarr:6767")
 BAZARR_API_KEY = os.environ.get("BAZARR_API_KEY", "")
+SABNZBD_API_KEY = os.environ.get("SABNZBD_API_KEY", "")
+LIDARR_API_KEY = os.environ.get("LIDARR_API_KEY", "")
+PROWLARR_API_KEY = os.environ.get("PROWLARR_API_KEY", "")
 
 client = genai.Client(api_key=api_key)
 
 # Initialize databases on startup
 init_db()
+
+
+# ── SSE Event Bus ────────────────────────────────────────────────────────────
+
+class SSEBus:
+    """Thread-safe publish/subscribe bus for Server-Sent Events."""
+
+    def __init__(self):
+        self._subscribers = []
+        self._lock = threading.Lock()
+
+    def subscribe(self):
+        q = queue.Queue(maxsize=64)
+        with self._lock:
+            self._subscribers.append(q)
+        return q
+
+    def unsubscribe(self, q):
+        with self._lock:
+            try:
+                self._subscribers.remove(q)
+            except ValueError:
+                pass
+
+    def publish(self, event_type, data):
+        # SYNTH-P2-01: strip newlines to prevent SSE frame injection via event_type
+        clean_type = event_type.replace('\n', '').replace('\r', '')
+        payload = f"event: {clean_type}\ndata: {json.dumps(data)}\n\n"
+        # SYNTH-P1-05: copy-then-publish — snapshot subscribers inside lock, iterate outside
+        with self._lock:
+            subs = list(self._subscribers)
+        dead = []
+        for q in subs:
+            try:
+                q.put_nowait(payload)
+            except queue.Full:
+                dead.append(q)
+        if dead:
+            with self._lock:
+                for q in dead:
+                    try:
+                        self._subscribers.remove(q)
+                    except ValueError:
+                        pass
+
+    @property
+    def client_count(self):
+        with self._lock:
+            return len(self._subscribers)
+
+
+sse_bus = SSEBus()
+
+
+def _sse_poll_docker_health():
+    """Background thread: polls docker-monitor every 15s, publishes docker:health."""
+    while True:
+        try:
+            r = http_requests.get("http://docker-monitor:5803/api/docker/containers", timeout=10)
+            r.raise_for_status()
+            raw = r.json()
+            containers = raw if isinstance(raw, list) else raw.get("containers", [])
+            result = []
+            for c in containers:
+                running = c.get("status") == "running"
+                result.append({
+                    "name": c.get("name", "unknown"),
+                    "running": running,
+                    "health": c.get("health", "none"),
+                    "restart_count": c.get("restart_count", 0),
+                    "started_at": c.get("started_at"),
+                    "image": c.get("image"),
+                })
+            result.sort(key=lambda x: (x["running"], x["name"]))
+            healthy = sum(1 for c in result if c["running"])
+            sse_bus.publish("docker:health", {
+                "containers": result,
+                "total": len(result),
+                "healthy": healthy,
+                "unhealthy": len(result) - healthy,
+                "ts": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
+        time.sleep(15)
+
+
+def _sse_poll_vpn_status():
+    """Background thread: polls gluetun every 20s, publishes vpn:status."""
+    while True:
+        try:
+            api_up = False
+            exit_ip = country = city = None
+            try:
+                r = http_requests.get('http://gluetun:8000/v1/publicip/ip', timeout=3)
+                api_up = (r.status_code == 200)
+                if api_up:
+                    d = r.json()
+                    exit_ip = d.get('public_ip')
+                    country = d.get('country')
+                    city = d.get('city')
+            except Exception:
+                pass
+
+            forwarded_port = None
+            try:
+                with open('/tmp/gluetun/forwarded_port') as f:
+                    val = int(f.read().strip())
+                    if 1024 <= val <= 65535:
+                        forwarded_port = val
+            except Exception:
+                pass
+
+            sse_bus.publish("vpn:status", {
+                "online": api_up,
+                "forwarded_port": forwarded_port,
+                "exit_ip": exit_ip,
+                "country": country,
+                "city": city,
+                "ts": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
+        time.sleep(20)
+
+
+def _sse_poll_downloads():
+    """Background thread: polls qBit + SABnzbd every 10s, publishes download:progress."""
+    while True:
+        try:
+            qb_active = []
+            sab_queue = {"slots": [], "speed": "0", "timeleft": "0:00:00"}
+
+            try:
+                r = http_requests.get("http://gluetun:8080/api/v2/torrents/info?filter=active", timeout=5)
+                if r.ok:
+                    torrents = r.json() if r.headers.get('content-type', '').startswith('application/json') else []
+                    for t in (torrents if isinstance(torrents, list) else []):
+                        qb_active.append({
+                            "name": t.get("name", ""),
+                            "progress": round(t.get("progress", 0) * 100, 1),
+                            "dlspeed": t.get("dlspeed", 0),
+                            "eta": t.get("eta", 0),
+                            "size": t.get("size", 0),
+                            "state": t.get("state", ""),
+                        })
+            except Exception:
+                pass
+
+            try:
+                r = http_requests.get(f"http://sabnzbd:8085/api/?mode=queue&output=json&limit=10&apikey={SABNZBD_API_KEY}", timeout=5)
+                if r.ok:
+                    data = r.json()
+                    q = data.get("queue", {})
+                    sab_queue = {
+                        "slots": [{
+                            "filename": s.get("filename", ""),
+                            "percentage": s.get("percentage", "0"),
+                            "mb": s.get("mb", "0"),
+                            "mbleft": s.get("mbleft", "0"),
+                            "timeleft": s.get("timeleft", "0:00:00"),
+                        } for s in q.get("slots", [])],
+                        "speed": q.get("speed", "0"),
+                        "timeleft": q.get("timeleft", "0:00:00"),
+                    }
+            except Exception:
+                pass
+
+            sse_bus.publish("download:progress", {
+                "qbittorrent": qb_active,
+                "sabnzbd": sab_queue,
+                "ts": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
+        time.sleep(10)
+
+
+# ── SSE Service Status Aggregator (PRD-035) ─────────────────────────────────
+# Replaces 30 frontend useServicePoller hooks with one server-side aggregator.
+# Each service is polled in parallel via ThreadPoolExecutor, results published
+# as a single `service:status` SSE event every 30s.
+
+
+def _svc_offline():
+    """Default offline status for a service."""
+    return {'online': False, 'level': 0, 'isBoiling': False, 'details': []}
+
+
+def _svc_get(url, timeout=5, headers=None, expect_json=True):
+    """Safe HTTP GET. Returns (data, True) on success, (None, False) on failure."""
+    try:
+        r = http_requests.get(url, timeout=timeout, headers=headers or {})
+        if not r.ok:
+            return None, False
+        if expect_json:
+            return r.json(), True
+        return {'_ok': True}, True
+    except Exception:
+        return None, False
+
+
+def _arr_h(key):
+    """X-Api-Key header for *arr services."""
+    return {'X-Api-Key': key}
+
+
+# ── Simple HTTP-200 services (no JSON parsing needed) ──
+
+_SIMPLE_SERVICES = {
+    'notifiarr': {
+        'url': 'http://notifiarr:5454/',
+        'details': [{'label': 'STATUS', 'value': 'Running'}],
+        'level': 0,
+    },
+    'musicbrainz': {
+        'url': 'http://musicbrainz-applet:5050/',
+        'details': [{'label': 'APPLET', 'value': 'ONLINE'}],
+        'level': 50,
+    },
+    'musicbrainz_db': {
+        'url': 'http://10.0.0.155:5000/',
+        'details': [{'label': 'LOCAL_DB', 'value': 'ONLINE'}],
+        'level': 50,
+    },
+    'snappymail': {
+        'url': 'http://10.0.0.155:8086/',
+        'details': [
+            {'label': 'SERVICE', 'value': 'ONLINE'},
+            {'label': 'DOMAIN', 'value': '*@tendrid.us'},
+            {'label': 'MODE', 'value': 'RECEIVE-ONLY'},
+        ],
+        'level': 25,
+    },
+    'recoll': {
+        'url': 'http://10.0.0.155:8087/',
+        'details': [
+            {'label': 'SERVICE', 'value': 'ONLINE'},
+            {'label': 'TYPE', 'value': 'FULL-TEXT SEARCH'},
+            {'label': 'ENGINE', 'value': 'XAPIAN'},
+        ],
+        'level': 20,
+    },
+    'audiobookshelf': {
+        'url': 'http://audiobookshelf:80/healthcheck',
+        'details': [
+            {'label': 'SERVICE', 'value': 'ONLINE'},
+            {'label': 'TYPE', 'value': 'AUDIOBOOKS'},
+            {'label': 'ACCESS', 'value': 'listen.tendrid.us'},
+        ],
+        'level': 25,
+    },
+    'kavita': {
+        'url': 'http://kavita:5000/api/health',
+        'details': [
+            {'label': 'SERVICE', 'value': 'ONLINE'},
+            {'label': 'TYPE', 'value': 'MANGA / EBOOKS'},
+            {'label': 'PORT', 'value': '5001'},
+        ],
+        'level': 20,
+    },
+    'prometheus': {
+        'url': 'http://prometheus:9090/-/healthy',
+        'details': [
+            {'label': 'SERVICE', 'value': 'ONLINE'},
+            {'label': 'RETENTION', 'value': '30d / 5GB'},
+            {'label': 'TARGETS', 'value': '4 jobs'},
+        ],
+        'level': 15,
+    },
+    'unpackerr': {
+        'url': 'http://10.0.0.195:5656/',
+        'details': [
+            {'label': 'SERVICE', 'value': 'ONLINE'},
+            {'label': 'TYPE', 'value': 'AUTO-EXTRACT'},
+            {'label': 'APPS', 'value': 'Radarr / Sonarr / Lidarr'},
+        ],
+        'level': 10,
+    },
+    'kiwix': {
+        'url': 'http://10.0.0.155:8089/',
+        'details': [
+            {'label': 'SERVICE', 'value': 'ONLINE'},
+            {'label': 'TYPE', 'value': 'OFFLINE WIKI'},
+            {'label': 'SERVER', 'value': 'SRV-2'},
+        ],
+        'level': 20,
+    },
+    'homeplanner': {
+        'url': 'http://10.0.0.155:3100/',
+        'details': [
+            {'label': 'SERVICE', 'value': 'ONLINE'},
+            {'label': 'TYPE',    'value': '3D HOME PLANNER'},
+            {'label': 'SERVER',  'value': 'SRV-2'},
+            {'label': 'TECH',    'value': 'React + Three.js'},
+        ],
+        'level': 15,
+    },
+}
+
+
+def _poll_simple(svc_id):
+    """Poll a simple HTTP-200-check service."""
+    cfg = _SIMPLE_SERVICES[svc_id]
+    try:
+        r = http_requests.get(cfg['url'], timeout=5)
+        if r.ok or r.status_code in (401, 302):
+            return {'online': True, 'level': cfg['level'], 'isBoiling': False, 'details': cfg['details']}
+    except Exception:
+        pass
+    return _svc_offline()
+
+
+# ── Arr queue services (radarr, sonarr, lidarr — identical transform) ──
+
+def _poll_arr_queue(url, api_key):
+    """Poll an *arr queue endpoint."""
+    data, ok = _svc_get(url, headers=_arr_h(api_key))
+    if not ok:
+        return _svc_offline()
+    count = data.get('totalRecords', len(data.get('records', [])))
+    level = min((count / 20) * 100, 100)
+    return {
+        'online': True, 'level': level, 'isBoiling': count > 0,
+        'details': [{'label': 'QUEUE', 'value': str(count)}],
+    }
+
+
+# ── Individual service pollers ──
+
+def _poll_tautulli():
+    data, ok = _svc_get(f"{TAUTULLI_URL}/api/v2?cmd=get_activity&apikey={TAUTULLI_API_KEY}")
+    if not ok:
+        return _svc_offline()
+    rd = data.get('response', {}).get('data', {})
+    streams = int(rd.get('stream_count', 0))
+    level = min((streams / 5) * 100, 100)
+    return {
+        'online': True, 'level': level, 'isBoiling': streams > 0,
+        'details': [
+            {'label': 'STREAMS', 'value': str(streams)},
+            {'label': 'LAN_BW', 'value': f"{rd.get('lan_bandwidth', 0)} kbps"},
+        ],
+    }
+
+
+def _poll_seerr():
+    data, ok = _svc_get(
+        f"{OVERSEERR_URL}/api/v1/request?take=50&skip=0&filter=pending&sort=added",
+        headers={'X-Api-Key': OVERSEERR_API_KEY},
+    )
+    if not ok:
+        return _svc_offline()
+    pending = data.get('pageInfo', {}).get('results', len(data.get('results', [])))
+    level = min((pending / 20) * 100, 100)
+    return {
+        'online': True, 'level': level, 'isBoiling': pending > 0,
+        'details': [{'label': 'PENDING', 'value': str(pending)}],
+    }
+
+
+def _poll_prowlarr():
+    data, ok = _svc_get('http://prowlarr:9696/api/v1/indexer', headers=_arr_h(PROWLARR_API_KEY))
+    if not ok:
+        return _svc_offline()
+    indexers = data if isinstance(data, list) else []
+    enabled = sum(1 for i in indexers if i.get('enable'))
+    total = len(indexers)
+    level = min((enabled / total) * 100, 100) if total > 0 else 0
+    return {
+        'online': True, 'level': level, 'isBoiling': enabled > 0,
+        'details': [
+            {'label': 'ENABLED', 'value': str(enabled)},
+            {'label': 'TOTAL', 'value': str(total)},
+        ],
+    }
+
+
+def _poll_qbittorrent():
+    data, ok = _svc_get('http://gluetun:8080/api/v2/torrents/info')
+    if not ok:
+        return _svc_offline()
+    torrents = data if isinstance(data, list) else []
+    total = len(torrents)
+    active_states = {'downloading', 'uploading', 'stalledDL', 'forcedDL', 'forcedUP'}
+    active = sum(1 for t in torrents if t.get('state') in active_states)
+    level = min((active / total) * 100, 100) if total > 0 else 0
+    dl_speed = sum(t.get('dlspeed', 0) for t in torrents)
+    return {
+        'online': True, 'level': level, 'isBoiling': active > 0,
+        'details': [
+            {'label': 'ACTIVE', 'value': f'{active}/{total}'},
+            {'label': 'DL_SPEED', 'value': f'{dl_speed / 1024 / 1024:.1f} MB/s'},
+        ],
+    }
+
+
+def _poll_sabnzbd():
+    data, ok = _svc_get(f'http://sabnzbd:8085/api?mode=queue&output=json&apikey={SABNZBD_API_KEY}')
+    if not ok:
+        return _svc_offline()
+    q = data.get('queue', {})
+    slots = int(q.get('noofslots', 0))
+    kbps = float(q.get('kbpersec', 0))
+    limit_kbps = float(q.get('speedlimit_abs', 0))
+    level = min((kbps / limit_kbps) * 100, 100) if limit_kbps > 0 else min((slots / 20) * 100, 100)
+    return {
+        'online': True, 'level': level, 'isBoiling': slots > 0,
+        'details': [
+            {'label': 'QUEUE', 'value': str(slots)},
+            {'label': 'SPEED', 'value': f'{kbps / 1024:.1f} MB/s'},
+        ],
+    }
+
+
+def _poll_flaresolverr():
+    data, ok = _svc_get('http://10.0.0.155:8191/health')
+    if not ok:
+        return _svc_offline()
+    online = data.get('status') in ('ok', 'healthy')
+    return {
+        'online': online, 'level': 40 if online else 0, 'isBoiling': False,
+        'details': [{'label': 'STATUS', 'value': data.get('status', 'unknown')}],
+    }
+
+
+def _poll_tautulli_bridge():
+    data, ok = _svc_get('http://host.docker.internal:8888/health')
+    if not ok:
+        return _svc_offline()
+    degraded = data.get('status') == 'degraded'
+    issues = data.get('issues', [])
+    return {
+        'online': True, 'level': 50 if degraded else 0, 'isBoiling': False,
+        'details': [
+            {'label': 'STATUS', 'value': (data.get('status', 'ok')).upper()},
+            *([{'label': 'ISSUES', 'value': str(len(issues))}] if issues else []),
+        ],
+    }
+
+
+def _poll_tunarr():
+    data, ok = _svc_get('http://10.0.0.155:8000/api/channels')
+    if not ok:
+        return _svc_offline()
+    channels = data if isinstance(data, list) else data.get('data', [])
+    total = len(channels)
+    active = sum(1 for c in channels if c.get('transcoding') or c.get('active'))
+    level = min((active / total) * 100, 100) if total > 0 else 0
+    return {
+        'online': True, 'level': level, 'isBoiling': active > 0,
+        'details': [
+            {'label': 'CHANNELS', 'value': str(total)},
+            {'label': 'ACTIVE', 'value': str(active)},
+        ],
+    }
+
+
+def _poll_grafana():
+    data, ok = _svc_get('http://grafana:3000/api/health')
+    if not ok:
+        return _svc_offline()
+    db_ok = data.get('database') == 'ok'
+    return {
+        'online': True, 'level': 15 if db_ok else 60, 'isBoiling': not db_ok,
+        'details': [
+            {'label': 'SERVICE', 'value': 'ONLINE' if db_ok else 'DEGRADED'},
+            {'label': 'DATABASE', 'value': data.get('database', 'unknown')},
+            {'label': 'VERSION', 'value': data.get('version', '?')},
+        ],
+    }
+
+
+def _poll_cloudflared():
+    if _cf_not_configured():
+        return _svc_offline()
+    tunnel, t_ok = _svc_get(
+        f"{CF_BASE}/accounts/{CF_ACCOUNT_ID}/cfd_tunnel/{CF_TUNNEL_ID}",
+        headers=_cf_headers(), timeout=8,
+    )
+    conn_data, _ = _svc_get(
+        f"{CF_BASE}/accounts/{CF_ACCOUNT_ID}/cfd_tunnel/{CF_TUNNEL_ID}/connections",
+        headers=_cf_headers(), timeout=8,
+    )
+    auth_data, _ = _svc_get(
+        f"{CF_BASE}/accounts/{CF_ACCOUNT_ID}/access/logs/access-requests?limit=1&direction=desc",
+        headers=_cf_headers(), timeout=8,
+    )
+    if not t_ok:
+        return _svc_offline()
+    t = tunnel.get('result', {})
+    healthy = t.get('status') == 'healthy' and len(t.get('connections', [])) >= 1
+    degraded = t.get('status') == 'degraded'
+    conns = (conn_data or {}).get('result', [])
+    return {
+        'online': healthy or degraded,
+        'level': 30 if healthy else (60 if degraded else 0),
+        'isBoiling': healthy,
+        'details': [
+            {'label': 'STATUS', 'value': (t.get('status', 'unknown')).upper()},
+            {'label': 'CONNECTORS', 'value': str(len(t.get('connections', [])))},
+            {'label': 'TUNNEL', 'value': t.get('name', '—')},
+        ],
+        '_cf': {
+            'tunnel': {
+                'name': t.get('name'),
+                'status': t.get('status'),
+                'connector_count': len(t.get('connections', [])),
+            },
+            'connections': [
+                {'colo': c.get('colo_name'), 'origin_ip': c.get('origin_ip'), 'opened_at': c.get('opened_at')}
+                for c in conns
+            ],
+            'auth': (auth_data or {}).get('result', []),
+        },
+    }
+
+
+def _poll_bazarr():
+    h = {'X-API-KEY': BAZARR_API_KEY}
+    status_d, s_ok = _svc_get(f'{BAZARR_URL}/api/system/status', headers=h)
+    wanted_d, _ = _svc_get(f'{BAZARR_URL}/api/movies/wanted?start=0&length=1', headers=h)
+    movies_d, _ = _svc_get(f'{BAZARR_URL}/api/movies?start=0&length=1', headers=h)
+    series_d, _ = _svc_get(f'{BAZARR_URL}/api/series?start=0&length=500', headers=h)
+    if not s_ok:
+        return _svc_offline()
+    missing_movies = (wanted_d or {}).get('total', 0)
+    total_movies = (movies_d or {}).get('total', 0)
+    mov_pct = (missing_movies / total_movies * 100) if total_movies > 0 else 0
+    series_list = (series_d or {}).get('data', [])
+    total_ep_files = sum(r.get('episodeFileCount', 0) for r in series_list)
+    total_ep_missing = sum(r.get('episodeMissingCount', 0) for r in series_list)
+    ep_pct = (total_ep_missing / total_ep_files * 100) if total_ep_files > 0 else 0
+    level = min(max(mov_pct, ep_pct), 100)
+    return {
+        'online': True, 'level': level, 'isBoiling': missing_movies > 0 or total_ep_missing > 0,
+        'details': [
+            {'label': 'MOVIES_MISSING', 'value': f'{mov_pct:.1f}%'},
+            {'label': 'EPISODES_MISSING', 'value': f'{ep_pct:.1f}%'},
+        ],
+    }
+
+
+def _poll_gluetun():
+    """VPN status + qBit listen port for mismatch detection."""
+    api_up = False
+    exit_ip = country = None
+    try:
+        r = http_requests.get('http://gluetun:8000/v1/publicip/ip', timeout=3)
+        api_up = (r.status_code == 200)
+        if api_up:
+            d = r.json()
+            exit_ip = d.get('public_ip')
+            country = d.get('country')
+    except Exception:
+        pass
+    forwarded_port = None
+    try:
+        with open('/tmp/gluetun/forwarded_port') as f:
+            val = int(f.read().strip())
+            if 1024 <= val <= 65535:
+                forwarded_port = val
+    except Exception:
+        pass
+    # Fetch qBit listen port for VPN mismatch detection (best-effort)
+    qbit_listen_port = None
+    try:
+        r = http_requests.get('http://gluetun:8080/api/v2/app/preferences', timeout=3)
+        if r.ok:
+            qbit_listen_port = r.json().get('listen_port')
+    except Exception:
+        pass
+    return {
+        'online': api_up, 'level': 50 if api_up else 0, 'isBoiling': api_up,
+        'details': [
+            {'label': 'COUNTRY', 'value': country or '—'},
+            {'label': 'EXIT_IP', 'value': exit_ip or '—'},
+        ],
+        'forwarded_port': forwarded_port,
+        'qbit_listen_port': qbit_listen_port,
+    }
+
+
+def _poll_restic():
+    data, ok = _svc_get('http://restic-sidecar:5802/api/backup/status')
+    if not ok or data.get('error'):
+        return _svc_offline()
+    last_time = data.get('last_backup_time')
+    if last_time:
+        try:
+            last_dt = datetime.fromisoformat(last_time.replace('Z', '+00:00'))
+            last_age = (datetime.now(timezone.utc) - last_dt).total_seconds() / 3600
+        except Exception:
+            last_age = float('inf')
+    else:
+        last_age = float('inf')
+    is_stale = last_age > 25 or data.get('hc_status') == 'down'
+    level = 80 if is_stale else (60 if data.get('hc_status') == 'grace' else 10)
+    return {
+        'online': True, 'level': level, 'isBoiling': is_stale,
+        'details': [
+            {'label': 'LAST_BACKUP', 'value': f'{last_age:.1f}h ago' if last_time else 'never'},
+            {'label': 'SNAPSHOTS', 'value': str(data.get('snapshot_count', 0))},
+            {'label': 'REPO_SIZE', 'value': f"{data.get('repo_size_gb')}GB" if data.get('repo_size_gb') else 'N/A'},
+            {'label': 'HC_STATUS', 'value': data.get('hc_status', '?')},
+        ],
+    }
+
+
+def _poll_bhyve():
+    data, ok = _svc_get('http://bhyve-bridge:5801/api/status')
+    if not ok:
+        return _svc_offline()
+    s = data.get('summary', {})
+    connected = s.get('connected', 0)
+    total = s.get('timer_count', 0)
+    active = s.get('active_watering', 0)
+    hub_ok = s.get('hub_online', False)
+    low_bat = s.get('low_battery', [])
+    level = 60 if active > 0 else (25 if hub_ok else 0)
+    return {
+        'online': True, 'level': level, 'isBoiling': active > 0,
+        'details': [
+            {'label': 'HUB', 'value': 'ONLINE' if hub_ok else 'OFFLINE'},
+            {'label': 'TIMERS', 'value': f'{connected}/{total}'},
+            {'label': 'ZONES', 'value': str(s.get('zone_count', 0))},
+            {'label': 'WATERING', 'value': 'ACTIVE' if active > 0 else 'IDLE'},
+            *([{'label': 'LOW BAT', 'value': ', '.join(low_bat)}] if low_bat else []),
+        ],
+    }
+
+
+def _poll_diskhealth():
+    data, ok = _svc_get('http://diskhealth-bridge:5805/api/summary')
+    if not ok:
+        return _svc_offline()
+    total = data.get('total', 0)
+    healthy = data.get('healthy', 0)
+    max_temp = data.get('max_temp_c', 0)
+    hottest = data.get('hottest_disk', '?')
+    stale = data.get('stale', False)
+    all_ok = healthy == total and not stale
+    level = 50 if stale else (15 if all_ok else 80)
+    return {
+        'online': True, 'level': level, 'isBoiling': not all_ok,
+        'details': [
+            {'label': 'DISKS', 'value': f'{healthy}/{total}'},
+            {'label': 'MAX TEMP', 'value': f'{max_temp}°C'},
+            {'label': 'HOTTEST', 'value': hottest},
+            {'label': 'STATUS', 'value': 'STALE' if stale else ('ALL HEALTHY' if all_ok else 'DEGRADED')},
+        ],
+    }
+
+
+def _poll_hue():
+    data, ok = _svc_get('http://hue-bridge:5800/api/hue/status')
+    if not ok:
+        return _svc_offline()
+    if not data.get('paired'):
+        return {'online': False, 'level': 0, 'isBoiling': False, 'details': [{'label': 'STATUS', 'value': 'NOT PAIRED'}]}
+    auto_on = data.get('automation_enabled', False)
+    rooms = data.get('rooms', [])
+    rooms_on = sum(1 for r in rooms if r.get('lights_on'))
+    level = min(rooms_on * 20, 60) if auto_on else 0
+    return {
+        'online': True, 'level': level, 'isBoiling': auto_on and rooms_on > 0,
+        'details': [
+            {'label': 'AUTOMATION', 'value': 'ON' if auto_on else 'OFF'},
+            {'label': 'MUSIC', 'value': 'ON' if data.get('music_enabled') else 'OFF'},
+            {'label': 'ROOMS_LIT', 'value': f'{rooms_on}/{len(rooms)}'},
+        ],
+        '_hue': data,
+    }
+
+
+def _poll_terminal():
+    srv1, s1_ok = _svc_get('http://claude-terminal-sidecar:7682/api/status')
+    srv2, s2_ok = _svc_get('http://10.0.0.155:7682/api/status')
+    s1 = srv1 if s1_ok and srv1 and len(srv1) > 0 else None
+    s2 = srv2 if s2_ok and srv2 and len(srv2) > 0 else None
+    s1_online = s1 is not None
+    s2_online = s2 is not None
+    return {
+        'online': s1_online, 'level': 20 if s1_online else 0, 'isBoiling': False,
+        'details': [
+            {'label': 'SRV-1', 'value': f"{(s1 or {}).get('backend', 'CLSH').upper()} / {(s1 or {}).get('mode', 'CLAUDE').upper()}" if s1_online else 'OFFLINE'},
+            {'label': 'SRV-2', 'value': f"{(s2 or {}).get('backend', 'CLSH').upper()} / {(s2 or {}).get('mode', 'CLAUDE').upper()}" if s2_online else 'NOT DEPLOYED'},
+        ],
+        '_terminal': {'srv1': s1, 'srv2': s2, 'srv1Online': s1_online, 'srv2Online': s2_online},
+    }
+
+
+def _poll_triggercmd():
+    """Check triggercmd container via docker-monitor."""
+    try:
+        r = http_requests.get('http://docker-monitor:5803/api/docker/containers', timeout=5)
+        if not r.ok:
+            return _svc_offline()
+        containers = r.json() if isinstance(r.json(), list) else r.json().get('containers', [])
+        c = next((x for x in containers if x.get('name') == 'triggercmd'), None)
+        if not c:
+            return _svc_offline()
+        running = c.get('status') == 'running'
+        return {
+            'online': running, 'level': 20 if running else 0, 'isBoiling': False,
+            'details': [
+                {'label': 'STATUS', 'value': 'RUNNING' if running else 'STOPPED'},
+                {'label': 'RESTARTS', 'value': str(c.get('restart_count', 0))},
+            ],
+        }
+    except Exception:
+        return _svc_offline()
+
+
+def _poll_obsidian():
+    """Probe Brain-Tree-OS on SRV-2 (primary) and SRV-1 (fallback)."""
+    srv2 = False
+    srv1 = False
+    try:
+        r = http_requests.get('http://10.0.0.155:3006', timeout=3)
+        srv2 = r.status_code in (200, 401, 302)
+    except Exception:
+        pass
+    try:
+        r = http_requests.get('http://host.docker.internal:3006', timeout=3)
+        srv1 = r.status_code in (200, 401, 302)
+    except Exception:
+        pass
+    return {
+        'online': srv2 or srv1, 'level': 20 if (srv2 or srv1) else 0, 'isBoiling': False,
+        'details': [
+            {'label': 'SRV-2', 'value': 'ONLINE' if srv2 else 'OFFLINE'},
+            {'label': 'SRV-1', 'value': 'ONLINE' if srv1 else 'OFFLINE'},
+            {'label': 'SOURCE', 'value': 'SRV-2 (primary)' if srv2 else ('SRV-1 (fallback)' if srv1 else 'NONE')},
+        ],
+    }
+
+
+def _kometa_parse_docker_logs():
+    """Return (state, run_at, hours_left, mins_left) from docker-monitor logs, or None."""
+    import re as _re
+    try:
+        r = http_requests.get('http://docker-monitor:5803/api/docker/logs/kometa?lines=5', timeout=5)
+        if not r.ok:
+            return None
+        lines = [e.get('message', '') for e in r.json().get('lines', [])]
+        combined = ' '.join(lines)
+        m = _re.search(
+            r'Current Time: \d+:\d+ \| (\d+) Hours and (\d+) Minutes until the next run at (\d+:\d+)',
+            combined
+        )
+        if m:
+            return ('sleeping', m.group(3), int(m.group(1)), int(m.group(2)))
+        if any(kw in combined for kw in ('Starting Run', 'kometa.py', 'overlays.py', 'Collection')):
+            return ('running', None, None, None)
+    except Exception:
+        pass
+    return None
+
+
+def _poll_kometa():
+    """Determine Kometa state: docker logs (countdown) → persistent log file → unknown."""
+    parsed = _kometa_parse_docker_logs()
+    if parsed:
+        state, run_at, hours_left, mins_left = parsed
+        if state == 'sleeping':
+            next_label = f'in {hours_left}h {mins_left}m'
+            return {
+                'online': True, 'level': 10, 'isBoiling': False,
+                'details': [
+                    {'label': 'STATE', 'value': 'SLEEPING'},
+                    {'label': 'LAST', 'value': f'today {run_at}'},
+                    {'label': 'NEXT', 'value': next_label},
+                ],
+            }
+        return {
+            'online': True, 'level': 60, 'isBoiling': True,
+            'details': [
+                {'label': 'STATE', 'value': 'RUNNING'},
+                {'label': 'LAST', 'value': '—'},
+                {'label': 'NEXT', 'value': '—'},
+            ],
+        }
+
+    # Fallback: persistent log file written during active runs
+    log_path = '/home/tener/.config/kometa/logs/meta.log'
+    try:
+        with open(log_path) as f:
+            lines = f.readlines()[-200:]
+        state = 'unknown'
+        last_run = None
+        for line in reversed(lines):
+            if 'Starting Run' in line and len(line) > 19:
+                state = 'running'
+                last_run = line[1:20].strip()
+                break
+        if state != 'unknown':
+            return {
+                'online': True, 'level': 60, 'isBoiling': True,
+                'details': [
+                    {'label': 'STATE', 'value': 'RUNNING'},
+                    {'label': 'LAST', 'value': last_run or '—'},
+                    {'label': 'NEXT', 'value': '—'},
+                ],
+            }
+    except Exception:
+        pass
+
+    return {
+        'online': False, 'level': 0, 'isBoiling': False,
+        'details': [
+            {'label': 'STATE', 'value': 'UNKNOWN'},
+            {'label': 'LAST', 'value': '—'},
+            {'label': 'NEXT', 'value': '—'},
+        ],
+    }
+
+
+
+def _poll_queue_manager():
+    """Read queue-manager state file + infer active/paused from log recency."""
+    state_path = '/tmp/queue-manager/sonarr_state.json'
+    log_path   = '/tmp/queue-manager/queue-manager.log'
+
+    try:
+        with open(state_path) as f:
+            state = json.load(f)
+    except FileNotFoundError:
+        state = {}   # service running but hasn't searched anything yet
+    except json.JSONDecodeError:
+        return _svc_offline()
+
+    searched   = len(state.get('searched_ids', []))
+    total      = 25   # QP-1 series count — update if profile reassignments change this
+    done       = state.get('done', False)
+    last_run   = state.get('last_run', '')
+
+    # Determine if the daemon is alive via log file mtime (timezone-independent)
+    # Log is written every CHECK_INTERVAL=300s; allow 2× margin + restart buffer
+    active = False
+    try:
+        import time as _time
+        age_s = _time.time() - os.path.getmtime(log_path)
+        active = age_s < 720   # alive if log touched within last 12 min
+    except Exception:
+        pass
+
+    pct = round(searched / total * 100) if total else 0
+    level = min(pct, 99) if not done else 0
+
+    if done:
+        state_label, is_boiling = 'DONE', False
+    elif active:
+        state_label, is_boiling = 'ACTIVE', True
+    else:
+        state_label, is_boiling = 'PAUSED', False
+
+    last_date = last_run[5:16].replace('T', ' ') if last_run else '—'
+
+    return {
+        'online': active or done,
+        'level': level,
+        'isBoiling': is_boiling,
+        'details': [
+            {'label': 'STATE',    'value': state_label},
+            {'label': 'PROGRESS', 'value': f'{searched} / {total} series'},
+            {'label': 'LAST RUN', 'value': last_date},
+        ],
+    }
+
+
+# ── Service status aggregator thread ──
+
+_SERVICE_POLL_MAP = {
+    # Simple HTTP-200 checks
+    **{svc_id: (lambda sid=svc_id: _poll_simple(sid)) for svc_id in _SIMPLE_SERVICES},
+    # Arr queue services
+    'radarr': lambda: _poll_arr_queue(f'{RADARR_URL}/api/v3/queue?pageSize=100', RADARR_API_KEY),
+    'sonarr': lambda: _poll_arr_queue(f'{SONARR_URL}/api/v3/queue?pageSize=100', SONARR_API_KEY),
+    'lidarr': lambda: _poll_arr_queue('http://lidarr:8686/api/v1/queue?pageSize=100', LIDARR_API_KEY),
+    # Individual pollers
+    'tautulli': _poll_tautulli,
+    'seerr': _poll_seerr,
+    'prowlarr': _poll_prowlarr,
+    'qbittorrent': _poll_qbittorrent,
+    'sabnzbd': _poll_sabnzbd,
+    'flaresolverr': _poll_flaresolverr,
+    'tautulli_bridge': _poll_tautulli_bridge,
+    'tunarr': _poll_tunarr,
+    'grafana': _poll_grafana,
+    'cloudflared': _poll_cloudflared,
+    'bazarr': _poll_bazarr,
+    'gluetun': _poll_gluetun,
+    'restic': _poll_restic,
+    'bhyve': _poll_bhyve,
+    'diskhealth': _poll_diskhealth,
+    'hue': _poll_hue,
+    'terminal': _poll_terminal,
+    'triggercmd': _poll_triggercmd,
+    'obsidian': _poll_obsidian,
+    'kometa': _poll_kometa,
+    'queue_manager': _poll_queue_manager,
+}
+
+
+# SYNTH-P1-06: module-level executor — avoids recreating the pool every 30s
+_service_poll_executor = ThreadPoolExecutor(max_workers=12, thread_name_prefix='svc-poll')
+
+
+def _sse_poll_service_status():
+    """Background thread: polls all services every 30s, publishes service:status."""
+    while True:
+        services = {}
+        try:
+            futures = {_service_poll_executor.submit(fn): svc_id for svc_id, fn in _SERVICE_POLL_MAP.items()}
+            for fut in as_completed(futures, timeout=20):
+                svc_id = futures[fut]
+                try:
+                    services[svc_id] = fut.result()
+                except Exception:
+                    services[svc_id] = _svc_offline()
+        except Exception:
+            # Timeout or pool error — publish whatever we got
+            pass
+        # Fill in any missing services
+        for svc_id in _SERVICE_POLL_MAP:
+            if svc_id not in services:
+                services[svc_id] = _svc_offline()
+        sse_bus.publish('service:status', {
+            'services': services,
+            'ts': datetime.now(timezone.utc).isoformat(),
+        })
+        time.sleep(30)
+
+
+_sse_pollers_started = False
+_sse_pollers_lock = threading.Lock()
+
+
+def _ensure_sse_pollers():
+    """Start SSE background pollers once per worker (lazy — avoids preload/fork issues)."""
+    global _sse_pollers_started
+    if _sse_pollers_started:
+        return
+    with _sse_pollers_lock:
+        if _sse_pollers_started:
+            return
+        for fn in (_sse_poll_docker_health, _sse_poll_vpn_status, _sse_poll_downloads, _sse_poll_service_status):
+            t = threading.Thread(target=fn, daemon=True)
+            t.start()
+        _sse_pollers_started = True
+
+
+@app.route('/api/events')
+def sse_events():
+    """SSE endpoint — single persistent connection replaces multiple polling loops."""
+    _ensure_sse_pollers()
+
+    def stream():
+        q = sse_bus.subscribe()
+        try:
+            # Send initial heartbeat so the client knows the connection is live
+            yield "event: connected\ndata: {\"clients\": %d}\n\n" % sse_bus.client_count
+            while True:
+                try:
+                    payload = q.get(timeout=30)
+                    yield payload
+                except queue.Empty:
+                    # Keepalive comment to prevent proxy/browser timeout
+                    yield ": keepalive\n\n"
+        except GeneratorExit:
+            pass
+        finally:
+            sse_bus.unsubscribe(q)
+
+    return Response(
+        stream(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        },
+    )
+
 
 # --- GEMINI CHAT LOGIC ---
 
@@ -419,6 +1410,8 @@ def get_stocks():
 
 _stock_history_cache = {}
 _STOCK_HISTORY_TTL = 900  # 15 minutes
+# SYNTH-P1-02: ticker allowlist — uppercase alphanumerics, dots, dashes, carets (^DJI, BRK.B, etc.)
+_TICKER_RE = re.compile(r'^[A-Z0-9.\-\^]{1,10}$')
 
 @app.route('/api/stocks/history', methods=['GET'])
 def get_stock_history():
@@ -438,8 +1431,9 @@ def get_stock_history():
         return jsonify({'error': f'Invalid interval. Allowed: {sorted(allowed_intervals)}'}), 400
 
     symbols = [s.strip().upper() for s in symbols_raw.split(',') if s.strip()][:8]
+    symbols = [s for s in symbols if _TICKER_RE.match(s)]
     if not symbols:
-        return jsonify({'error': 'No symbols provided'}), 400
+        return jsonify({'error': 'No valid symbols provided'}), 400
 
     cache_key = f"{','.join(symbols)}|{period}|{interval}"
     cached = _stock_history_cache.get(cache_key)
@@ -507,7 +1501,7 @@ def get_stock_history():
         return jsonify({'error': 'timeout'}), 504
     except Exception as e:
         app.logger.error("Stock history error: %s", e, exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'stock history unavailable'}), 500
 
 
 def _is_stale(generated_at_str, threshold_minutes=15):
@@ -530,7 +1524,9 @@ def port_audit():
         ports = data.get('ports', [])
         if not isinstance(ports, list):
             return jsonify({'error': 'invalid data'}), 503
-        return jsonify({'ports': ports[:200], 'ts': data.get('ts'),
+        docker_ports = data.get('docker_ports', [])
+        return jsonify({'ports': ports[:200], 'docker_ports': docker_ports,
+                        'ts': data.get('ts'),
                         'stale': _is_stale(data.get('generated_at'))})
     except Exception as e:
         app.logger.error('port_audit error: %s', e)
@@ -1935,27 +2931,28 @@ def image_freshness():
 # ── NH-73 — Kometa Status ───────────────────────────────────────
 @app.route('/api/kometa/status')
 def kometa_status():
-    log_dir = '/tmp/kometa-logs'
-    status = {'state': 'unknown', 'lastRun': None, 'duration': None, 'collections': 0, 'overlays': 0, 'errors': []}
-    log_path = os.path.join(log_dir, 'meta.log')
-    if not os.path.exists(log_path):
+    status = {'state': 'unknown', 'lastRun': None, 'nextRun': None, 'collections': 0, 'overlays': 0, 'errors': []}
+    parsed = _kometa_parse_docker_logs()
+    if parsed:
+        state, run_at, hours_left, mins_left = parsed
+        status['state'] = state
+        if state == 'sleeping':
+            status['lastRun'] = f'today {run_at}'
+            status['nextRun'] = f'in {hours_left}h {mins_left}m'
         return jsonify(status)
+
+    # Fallback: persistent log file
+    log_path = '/home/tener/.config/kometa/logs/meta.log'
     try:
         with open(log_path) as f:
             lines = f.readlines()[-200:]
         for line in reversed(lines):
-            if 'Run Completed' in line or 'Finished' in line:
-                status['state'] = 'sleeping'
-                # Extract timestamp from log line
-                if len(line) > 19:
-                    status['lastRun'] = line[:19].strip()
-                break
-            if 'Run Started' in line or 'Starting' in line:
-                status['state'] = 'syncing'
+            if 'Starting Run' in line and len(line) > 19:
+                status['state'] = 'running'
+                status['lastRun'] = line[1:20].strip()
                 break
             if 'error' in line.lower() or 'ERROR' in line:
                 status['errors'].append(line.strip()[:200])
-        # Count collections/overlays
         for line in lines:
             if 'Collection' in line and ('Created' in line or 'Updated' in line):
                 status['collections'] += 1
@@ -2039,6 +3036,86 @@ def deploy_history():
             return jsonify(json.load(f))
     except Exception:
         return jsonify([])
+
+
+# ── NH-74: Grab release (send to SABnzbd or qBittorrent) ───────────────────
+PROWLARR_URL = os.environ.get("PROWLARR_URL", "http://prowlarr:9696")
+PROWLARR_API_KEY = os.environ.get("PROWLARR_API_KEY", "")
+QBIT_URL = os.environ.get("QBIT_URL", "http://gluetun:8080")
+
+# qBittorrent uses title-case categories; SABnzbd uses lowercase
+QBIT_CATEGORY_MAP = {'audiobooks': 'Audiobooks', 'books': 'Books'}
+
+# SYNTH-P1-01: SSRF blocklist — only allow external http/https or magnet URIs
+_DOWNLOAD_URL_RE = re.compile(r'^(https?://[^\s<>"\'\x00-\x1f]+|magnet:\?[^\s<>"\'\x00-\x1f]+)$')
+_INTERNAL_PREFIXES = (
+    'http://172.', 'https://172.',
+    'http://10.',  'https://10.',
+    'http://192.168.', 'https://192.168.',
+    'http://127.',     'https://127.',
+    'http://localhost', 'https://localhost',
+    'http://host.docker.internal',
+)
+
+def _validate_download_url(url):
+    if not url or not _DOWNLOAD_URL_RE.match(url):
+        return False
+    low = url.lower()
+    return not any(low.startswith(p) for p in _INTERNAL_PREFIXES)
+
+
+@app.route('/api/grab', methods=['POST'])
+def grab_release():
+    data = request.json or {}
+    download_url = data.get('downloadUrl')
+    title = data.get('title', 'Unknown')
+    category = data.get('category', 'books')
+    protocol = data.get('protocol', 'torrent')
+
+    if not _validate_download_url(download_url):
+        return jsonify({'error': 'invalid downloadUrl'}), 400
+
+    try:
+        if protocol == 'usenet':
+            resp = http_requests.get('http://sabnzbd:8085/api', params={
+                'mode': 'addurl',
+                'name': download_url,
+                'nzbname': title,
+                'cat': category,
+                'apikey': SABNZBD_API_KEY,
+                'output': 'json',
+            }, timeout=10)
+            return jsonify({'status': 'sent', 'client': 'sabnzbd', 'response': resp.json()})
+        else:
+            qbit_cat = QBIT_CATEGORY_MAP.get(category, category)
+            resp = http_requests.post(f'{QBIT_URL}/api/v2/torrents/add', data={
+                'urls': download_url,
+                'category': qbit_cat,
+            }, timeout=10)
+            ok = resp.status_code == 200 and resp.text.strip().lower() == 'ok.'
+            return jsonify({'status': 'sent' if ok else 'error', 'client': 'qbittorrent'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
+
+
+@app.route('/api/search', methods=['GET'])
+def search_prowlarr():
+    query = request.args.get('query', '')
+    categories = request.args.get('categories', '')
+    if not query:
+        return jsonify({'error': 'query is required'}), 400
+    try:
+        # Prowlarr expects repeated categories[] params, not comma-separated
+        params = [('query', query)]
+        for cat in categories.split(','):
+            cat = cat.strip()
+            if cat:
+                params.append(('categories', int(cat)))
+        resp = http_requests.get(f'{PROWLARR_URL}/api/v1/search', params=params,
+                                 headers={'X-Api-Key': PROWLARR_API_KEY}, timeout=30)
+        return jsonify(resp.json())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
 
 
 if __name__ == '__main__':

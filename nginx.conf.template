@@ -342,10 +342,152 @@ server {
         limit_req zone=api_general burst=60 nodelay;
     }
 
+    location /api/recoll/ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://10.0.0.155:8087/;
+        proxy_set_header Host $host;
+        proxy_read_timeout 10s;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/homeplanner/ {
+        proxy_pass http://10.0.0.155:3100/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 10s;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/audiobookshelf/ {
+        limit_except GET HEAD { deny all; }
+        set $upstream_abs audiobookshelf;
+        proxy_pass http://$upstream_abs:80/healthcheck;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/kavita/ {
+        limit_except GET HEAD { deny all; }
+        set $upstream_kavita kavita;
+        proxy_pass http://$upstream_kavita:5000/api/health;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    location /api/unpackerr/ {
+        # Windows service — direct IP, no Docker DNS
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://10.0.0.195:5656/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
     location /api/bhyve/ {
         limit_except GET HEAD { deny all; }
+        # `set` must run before `rewrite ... break` — break halts the rewrite phase.
         set $upstream_bhyve bhyve-bridge;
-        proxy_pass http://$upstream_bhyve:5801/api/;
+        rewrite ^/api/bhyve/(.*)$ /api/$1 break;
+        proxy_pass http://$upstream_bhyve:5801;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # SRV-2 HomePlanner pushes computed watering schedules (LAN-only POST).
+    # LAN traffic arrives NAT'd through Windows portproxy as 172.30.x (WSL bridge);
+    # 172.16.0.0/12 covers both WSL + docker networks, same as other LAN endpoints.
+    location = /api/bhyve/schedule {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except POST { deny all; }
+        set $upstream_bhyve_w bhyve-bridge;
+        rewrite ^ /api/schedule break;
+        proxy_pass http://$upstream_bhyve_w:5801;
+        proxy_set_header Host $host;
+        limit_req zone=api_write burst=10 nodelay;
+    }
+
+    # Manual zone run / stop — LAN-only POST, same allowlist + rate class as schedule.
+    location = /api/bhyve/run {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except POST { deny all; }
+        set $upstream_bhyve_run bhyve-bridge;
+        rewrite ^ /api/run break;
+        proxy_pass http://$upstream_bhyve_run:5801;
+        proxy_set_header Host $host;
+        limit_req zone=api_write burst=10 nodelay;
+    }
+
+    location = /api/bhyve/stop {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except POST { deny all; }
+        set $upstream_bhyve_stop bhyve-bridge;
+        rewrite ^ /api/stop break;
+        proxy_pass http://$upstream_bhyve_stop:5801;
+        proxy_set_header Host $host;
+        limit_req zone=api_write burst=10 nodelay;
+    }
+
+    # Device-level per-zone field updates (smart_watering_enabled, name, etc).
+    location = /api/bhyve/device {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except POST { deny all; }
+        set $upstream_bhyve_dev bhyve-bridge;
+        rewrite ^ /api/device break;
+        proxy_pass http://$upstream_bhyve_dev:5801;
+        proxy_set_header Host $host;
+        limit_req zone=api_write burst=10 nodelay;
+    }
+
+    # DF-02: Disk health bridge (SMART data from Windows PowerShell)
+    location /api/diskhealth/ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://diskhealth-bridge:5805/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # DF-01: Prometheus API proxy (LAN-only, read-only)
+    location /api/prometheus/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://prometheus:9090/;
+        proxy_set_header Host $host;
+        limit_req zone=api_general burst=60 nodelay;
+    }
+
+    # DF-01: Grafana API proxy (LAN-only, read-only)
+    location /api/grafana/ {
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://grafana:3000/;
         proxy_set_header Host $host;
         limit_req zone=api_general burst=60 nodelay;
     }
@@ -402,6 +544,19 @@ server {
         limit_req zone=api_general burst=5 nodelay;
     }
 
+    # ADR-009: SSE Event Bus — persistent connection, no buffering, long timeout
+    location = /api/flask/events {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://flask-backend:5000/api/events;
+        proxy_set_header Host $host;
+        proxy_set_header Connection '';
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+        chunked_transfer_encoding off;
+    }
+
     # LAN-only: VPN status data should not be reachable from outside the network.
     location = /api/flask/vpn-status {
         allow 10.0.0.0/8;
@@ -441,6 +596,20 @@ server {
         proxy_set_header Host $host;
         proxy_set_header Content-Type $http_content_type;
         limit_req zone=api_write burst=3 nodelay;
+    }
+
+    # NH-74: Grab release — POST to send NZB/torrent to download client
+    location = /api/flask/grab {
+        limit_except POST { deny all; }
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 127.0.0.0/8;
+        deny all;
+        proxy_pass http://flask-backend:5000/api/grab;
+        proxy_set_header Host $host;
+        proxy_set_header Content-Type $http_content_type;
+        limit_req zone=api_write burst=5 nodelay;
     }
 
     location ~ ^/api/flask/(.*)$ {
@@ -768,18 +937,20 @@ server {
         limit_req zone=api_general burst=60 nodelay;
     }
 
-    # LAN-only
-    location /abs/ {
+    # LAN-only — ABS serves all assets under /audiobookshelf/ (baked into Nuxt build)
+    location /audiobookshelf/ {
         allow 10.0.0.0/8;
         allow 172.16.0.0/12;
         allow 192.168.0.0/16;
         allow 127.0.0.0/8;
         deny all;
-        proxy_pass http://audiobookshelf:80/;
+        proxy_pass http://audiobookshelf:80;
         proxy_set_header Host $host;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
         limit_req zone=api_general burst=60 nodelay;
     }
 

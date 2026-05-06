@@ -481,12 +481,94 @@ const LotterySection = () => {
   );
 };
 
+const QueueManagerSection = ({ stats }) => {
+  const d = stats.details || [];
+  const getVal = (label) => (d.find(x => x.label === label) || {}).value || '—';
+  const state    = getVal('STATE');
+  const progress = getVal('PROGRESS');
+  const lastRun  = getVal('LAST RUN');
+
+  const [searched, total] = progress.split(' / ').map(s => parseInt(s, 10) || 0);
+  const pct = total > 0 ? Math.round(searched / total * 100) : 0;
+
+  const stateColor = state === 'ACTIVE'  ? '#4ade80'
+                   : state === 'DONE'    ? '#60a5fa'
+                   : state === 'PAUSED'  ? '#facc15'
+                   : 'rgba(255,255,255,0.3)';
+
+  return (
+    <div style={{ marginTop: 8, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 6 }}>
+      <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.2em', marginBottom: 6 }}>
+        UPGRADE SCHEDULER
+      </div>
+
+      {/* State badge */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: stateColor, flexShrink: 0,
+          boxShadow: `0 0 6px ${stateColor}` }} />
+        <span style={{ fontSize: 9, fontFamily: MONO, color: stateColor, letterSpacing: '0.15em' }}>
+          {state}
+        </span>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8,
+          color: 'rgba(255,255,255,0.4)', fontFamily: MONO, marginBottom: 3 }}>
+          <span>SERIES SEARCHED</span>
+          <span>{progress}</span>
+        </div>
+        <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, borderRadius: 2,
+            background: state === 'DONE' ? '#60a5fa' : '#4ade80',
+            transition: 'width 0.6s ease',
+            boxShadow: `0 0 8px ${state === 'DONE' ? '#60a5fa' : '#4ade80'}55` }} />
+        </div>
+        <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.25)', fontFamily: MONO, marginTop: 2, textAlign: 'right' }}>
+          {pct}%
+        </div>
+      </div>
+
+      {/* Last run */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8,
+        color: 'rgba(255,255,255,0.35)', fontFamily: MONO }}>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>LAST RUN</span>
+        <span>{lastRun}</span>
+      </div>
+    </div>
+  );
+};
+
+const HomePlannerSection = () => (
+  <div style={S.sectionDivider}>
+    <div style={{ ...S.sectionHeader(), marginBottom: 8 }}>◆ FLOOR PLAN ◆</div>
+    <iframe
+      src="/api/homeplanner/"
+      title="HomePlanner 3D"
+      style={{ width: '100%', minHeight: 480, border: 'none', borderRadius: 6, background: '#0a0a0f' }}
+      loading="lazy"
+    />
+    <div style={{ marginTop: 10, textAlign: 'right' }}>
+      <a
+        href="http://10.0.0.155:3100"
+        target="_blank"
+        rel="noreferrer"
+        style={{ ...S.actionBtn('168,85,247'), textDecoration: 'none', display: 'inline-block' }}
+      >
+        ↗ OPEN HOMEPLANNER
+      </a>
+    </div>
+  </div>
+);
+
 const SERVICE_SECTIONS = {
   'claude-terminal': ClaudeTerminalSection,
   'hue-bridge': HueBridgeSection,
   'cloudflared': CloudflaredSection,
   'tautulli-bridge': TautulliBridgeSection,
   'lottery': LotterySection,
+  'queue-manager': QueueManagerSection,
+  'homeplanner': HomePlannerSection,
 };
 
 // ── Default detailTransform (CHEM fallback) ──

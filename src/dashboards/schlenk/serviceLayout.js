@@ -62,6 +62,8 @@ export const SERVICE_TO_ZONE = {
   'hue-bridge':       'TOOLS',
   'lan-presence':     'TOOLS',
   'home-assistant':   'TOOLS',
+  homeplanner:        'TOOLS',
+  kiwix:              'LIBRARY',
 };
 
 /**

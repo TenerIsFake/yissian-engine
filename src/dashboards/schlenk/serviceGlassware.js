@@ -64,7 +64,9 @@ export const GLASSWARE_BY_SERVICE = {
   'hue-bridge':       'pear-flask',       // small lighting control
   'lan-presence':     'buchner-filter',
   'home-assistant':   'rbf-3neck',        // multi-integration hub
+  homeplanner:        'long-schlenk',     // sealed long-form planning vessel
   musicbrainz:        'soxhlet',          // continuous indexing extraction
+  kiwix:              'j-young',          // sealed offline knowledge archive
 
   // Fallback for unmapped services: DEFAULT_SHAPE (rbf-1neck)
 };
