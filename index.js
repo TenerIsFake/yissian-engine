@@ -237,6 +237,106 @@ export function translateToDialect(text) {
   return text.replace(TOKEN_RE, transformToken);
 }
 
+// ── Pig Latin ─────────────────────────────────────────────────────────────────
+
+function pigLatinCore(word) {
+  const lower = word.toLowerCase();
+  if (!/[aeiou]/i.test(lower)) return lower;
+  if (/^[aeiou]/i.test(lower)) return lower + 'way';
+  // Treat "qu" as a single consonant unit, then move cluster to end + "ay"
+  const clusterMatch = lower.match(/^([^aeiou]*qu|[^aeiou]+)/);
+  const cluster = clusterMatch ? clusterMatch[0] : '';
+  const rest = lower.slice(cluster.length);
+  return rest ? rest + cluster + 'ay' : lower;
+}
+
+/**
+ * Translate a string to Pig Latin.
+ * @param {string} text
+ * @returns {string}
+ */
+export function translatePigLatin(text) {
+  if (typeof text !== 'string' || !text) return text;
+  return text.replace(TOKEN_RE, token => {
+    if (/^\s+$/.test(token) || /^[^\w]+$/.test(token) || PRESERVE_TOKEN.test(token)) return token;
+    if (token.includes('-'))
+      return token.split('-').map(p => preserveCase(pigLatinCore(p), p)).join('-');
+    return preserveCase(pigLatinCore(token), token);
+  });
+}
+
+// ── Pootie Tang ───────────────────────────────────────────────────────────────
+
+const POOTIE_MAP = {
+  // ★ Canonical (from film)
+  'yes': 'sa da tay',   'okay': 'sa da tay',  'ok': 'sa da tay',
+  'hello': 'wa da tah', 'hi': 'wa da tah',
+  'cool': 'cole',
+  'stop': 'sepatown',   'separate': 'sepatown',
+  'sign': 'sine',
+  'name': 'pitty',
+  'run': 'runny',
+  'time': 'kine',
+  'no': 'nah',
+  'what': 'wa',
+  'up': 'da tah',
+  // User-specified
+  'have': 'dame',
+  'peas': 'cherries',
+  'mom': 'mamadee',     'mommy': 'mamadee',
+  // Affirmatives / positives
+  'good': 'sa da',      'great': 'sa da tay tay',
+  'right': 'sa kine',   'beautiful': 'pitty sa da',
+  'love': 'sa da tay cole',  'happy': 'sa da cole',
+  'perfect': 'sa da tay sine',
+  'please': 'da tay',   'thanks': 'wa cole',  'thank': 'wa cole',
+  // Negatives / stops
+  'bad': 'nah tay',     'wrong': 'nah kine',
+  'never': 'nah nah',   'hate': 'nah cole',
+  'problem': 'nah panny',
+  'away': 'sepa da',    'far': 'sepatown',    'gone': 'sepa kine',
+  // People / nouns
+  'man': 'tang',        'guy': 'tang',
+  'woman': 'pitty tang', 'friend': 'tay tang', 'enemy': 'nah tang',
+  'money': 'panny',     'street': 'kine way', 'style': 'sty',
+  'truth': 'sa kine',   'trouble': 'nah panny sty',
+  // Verbs
+  'say': 'sa',          'know': 'kine',
+  'want': 'wa da',      'need': 'wa da tay',
+  'do': 'da',           'give': 'cole',
+  'come': 'cole da',    'go': 'runny da',
+  'see': 'sine tay',    'hear': 'wa kine',
+  'tell': 'sine',       'take': 'sine da',
+  // Descriptors
+  'fast': 'runny kine', 'slow': 'cole kine',
+  'big': 'tay tay',     'small': 'pitty pitty',
+  'new': 'sa tay',      'old': 'cole tine',
+  'now': 'da tay',      'here': 'da',         'there': 'sepa',
+};
+
+function pootieWord(word) {
+  const lower = word.toLowerCase();
+  const mapped = POOTIE_MAP[lower];
+  if (!mapped) return word;
+  if (word[0] === word[0].toUpperCase() && /[a-z]/.test(word))
+    return mapped[0].toUpperCase() + mapped.slice(1);
+  return mapped;
+}
+
+/**
+ * Translate a string to Pootie Tang dialect.
+ * Words not in the lexicon pass through unchanged.
+ * @param {string} text
+ * @returns {string}
+ */
+export function translatePootie(text) {
+  if (typeof text !== 'string' || !text) return text;
+  return text.replace(TOKEN_RE, token => {
+    if (/^\s+$/.test(token) || /^[^\w]+$/.test(token) || PRESERVE_TOKEN.test(token)) return token;
+    return pootieWord(token);
+  });
+}
+
 /**
  * Run a smoke test in the console.
  * Call dialectEngine_test() in a Node REPL or browser console.

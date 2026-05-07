@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "4447b55b-0a7e-4f51-bd9c-587931dd9093"
+      }
+    },
+    "android": {
+      "package": "com.tendrid.yissianengine"
+    }
+  }
+}
